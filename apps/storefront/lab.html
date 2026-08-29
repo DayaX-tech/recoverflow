@@ -63,6 +63,16 @@
             color: #f0fdf4;
         }
 
+        button.agent {
+            background: #022c22;
+            border-color: #14b8a6;
+            color: #5eead4;
+        }
+
+        button.agent:hover {
+            background: #134e4a;
+        }
+
         .out {
             margin-top: 32px;
             max-width: 1100px;
@@ -101,6 +111,12 @@
         <button onclick="sim('stale_mandate')"><b>🔁 Stale Mandate</b>Auto-debit revoked — NPCI-MANDATE-REVOKED</button>
         <button onclick="testScope()"><b>🛑 Scope Test: Try to recover a COD order</b>Agent must REFUSE — COD has no
             online payment</button>
+        <button class="agent" onclick="runAgent()"><b>🤖 RUN AGENT</b>Diagnose all open cases — decisions &amp;
+            reasoning</button>
+        <button class="agent" onclick="showDecisions()"><b>📋 View Decision Log</b>Every decision the agent has made,
+            with reasons</button>
+        <button class="agent" onclick="showAudit()"><b>🔗 Audit Trail + Chain Verify</b>Tamper-evident event
+            ledger</button>
     </div>
 
     <div class="out" id="out"></div>
@@ -127,6 +143,31 @@
             if (!cod) { out.textContent = 'No COD order found — create one on the storefront first.'; return; }
             const verdict = await (await fetch(`API/recovery−scope/{API}/recovery-scope/API/recovery−scope/{cod.order_id}`)).json();
             out.textContent = 'AGENT SCOPE CHECK\n\n' + JSON.stringify(verdict, null, 2);
+        }
+
+        async function runAgent() {
+            const out = document.getElementById('out');
+            out.style.display = 'block';
+            out.textContent = '🤖 Agent is thinking...';
+            const res = await fetch(`${API}/agent/diagnose`, { method: 'POST' });
+            const data = await res.json();
+            out.textContent = '🤖 AGENT RUN — ' + data.processed + ' case(s) diagnosed\n\n' + JSON.stringify(data.decisions, null, 2);
+        }
+
+        async function showDecisions() {
+            const data = await (await fetch(`${API}/agent/decisions`)).json();
+            const out = document.getElementById('out');
+            out.style.display = 'block';
+            out.textContent = '📋 AGENT DECISION LOG\n\n' + JSON.stringify(data, null, 2);
+        }
+
+        async function showAudit() {
+            const trail = await (await fetch(`${API}/audit?limit=20`)).json();
+            const verify = await (await fetch(`${API}/audit/verify`)).json();
+            const out = document.getElementById('out');
+            out.style.display = 'block';
+            out.textContent = '🔗 CHAIN VERIFICATION\n\n' + JSON.stringify(verify, null, 2) +
+                '\n\n🔗 LAST 20 AUDIT EVENTS\n\n' + JSON.stringify(trail, null, 2);
         }
     </script>
 </body>

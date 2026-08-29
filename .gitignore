@@ -3,3 +3,18 @@ __pycache__/
 node_modules/
 *.pyc
 .DS_Store
+# secrets — NEVER commit
+.env
+
+# databases
+*.db
+*.sqlite3
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# ngrok
+ngrok.exe
+ngrok.yml
