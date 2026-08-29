@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseFit — Train Beyond Limits</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #0a0a0f;
+            --card: #14141d;
+            --card2: #1a1a26;
+            --accent: #7c3aed;
+            --accent2: #22d3ee;
+            --lime: #a3e635;
+            --text: #f1f1f5;
+            --muted: #9ca3af;
+            --radius: 20px;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        /* ===== ANIMATED BACKGROUND ===== */
+        .aurora {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            background:
+                radial-gradient(ellipse 60% 40% at 15% 10%, rgba(124, 58, 237, .25), transparent),
+                radial-gradient(ellipse 50% 35% at 85% 20%, rgba(34, 211, 238, .18), transparent),
+                radial-gradient(ellipse 55% 45% at 50% 100%, rgba(163, 230, 53, .10), transparent);
+            animation: auroraShift 12s ease-in-out infinite alternate;
+        }
+
+        @keyframes auroraShift {
+            0% {
+                transform: scale(1) translateY(0);
+            }
+
+            100% {
+                transform: scale(1.1) translateY(-20px);
+            }
+        }
+
+        .grid-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            opacity: .04;
+            background-image: linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        /* ===== NAVBAR ===== */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 6vw;
+            background: rgba(10, 10, 15, .75);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, .06);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            background: linear-gradient(90deg, var(--accent2), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo .pulse-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--lime);
+            animation: heartbeat 1.2s ease-in-out infinite;
+        }
+
+        @keyframes heartbeat {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(163, 230, 53, .6);
+            }
+
+            50% {
+                transform: scale(1.25);
+                box-shadow: 0 0 0 8px rgba(163, 230, 53, 0);
+            }
+        }
+
+        .cta-mini {
+            background: linear-gradient(90deg, var(--accent), #5b21b6);
+            color: #fff;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 999px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: .25s;
+            font-size: .95rem;
+        }
+
+        .cta-mini:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(124, 58, 237, .45);
+        }
+
+        /* ===== HERO ===== */
+        .hero {
+            min-height: 82vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 0 6vw;
+            position: relative;
+        }
+
+        .hero .badge {
+            padding: 8px 18px;
+            border-radius: 999px;
+            font-size: .8rem;
+            border: 1px solid rgba(163, 230, 53, .35);
+            color: var(--lime);
+            background: rgba(163, 230, 53, .07);
+            animation: fadeUp .8s ease both;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.6rem, 7vw, 5.2rem);
+            font-weight: 900;
+            line-height: 1.05;
+            letter-spacing: -3px;
+            margin: 24px 0;
+            animation: fadeUp .8s .15s ease both;
+        }
+
+        .hero h1 .grad {
+            background: linear-gradient(90deg, var(--accent2) 0%, var(--accent) 50%, #e879f9 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            background-size: 200% auto;
+            animation: gradientFlow 4s linear infinite;
+        }
+
+        @keyframes gradientFlow {
+            to {
+                background-position: 200% center;
+            }
+        }
+
+        .hero p {
+            color: var(--muted);
+            font-size: 1.15rem;
+            max-width: 560px;
+            animation: fadeUp .8s .3s ease both;
+        }
+
+        .hero .hero-cta {
+            margin-top: 36px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+            animation: fadeUp .8s .45s ease both;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, var(--accent), #6d28d9);
+            color: #fff;
+            border: none;
+            padding: 16px 36px;
+            border-radius: 999px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: .25s;
+            box-shadow: 0 10px 30px rgba(124, 58, 237, .35);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 16px 44px rgba(124, 58, 237, .55);
+        }
+
+        .btn-primary:disabled {
+            opacity: .6;
+            cursor: wait;
+            transform: none;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, .2);
+            padding: 16px 36px;
+            border-radius: 999px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: .25s;
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--accent2);
+            color: var(--accent2);
+            transform: translateY(-3px);
+        }
+
+        .scroll-cue {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            color: var(--muted);
+            font-size: 1.4rem;
+            animation: bounce 1.8s infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translate(-50%, 0);
+            }
+
+            50% {
+                transform: translate(-50%, 10px);
+            }
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ===== STATS ===== */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 6vw;
+            flex-wrap: wrap;
+            padding: 48px 6vw;
+            border-top: 1px solid rgba(255, 255, 255, .06);
+            border-bottom: 1px solid rgba(255, 255, 255, .06);
+        }
+
+        .stat .num {
+            font-size: 2.4rem;
+            font-weight: 900;
+            background: linear-gradient(90deg, var(--accent2), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: ;
+            color: transparent;
+        }
+
+        .stat .lbl {
+            color: var(--muted);
+            font-size: .85rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        /* ===== PRODUCTS ===== */
+        .section {
+            padding: 90px 6vw;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .section-title h2 {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+
+        .section-title .accent-line {
+            width: 70px;
+            height: 4px;
+            border-radius: 4px;
+            margin: 16px auto 0;
+            background: linear-gradient(90deg, var(--accent2), var(--accent));
+        }
+
+        .products {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 32px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: linear-gradient(160deg, var(--card), var(--card2));
+            border: 1px solid rgba(255, 255, 255, .07);
+            border-radius: var(--radius);
+            padding: 36px;
+            position: relative;
+            overflow: hidden;
+            transition: transform .35s cubic-bezier(.2, .8, .3, 1.2), box-shadow .35s, border-color .35s;
+            opacity: 0;
+            transform: translateY(40px);
+        }
+
+        .card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(124, 58, 237, .5);
+            box-shadow: 0 24px 60px rgba(124, 58, 237, .25);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -60%;
+            left: -60%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(124, 58, 237, .15), transparent 60%);
+            transition: .5s;
+        }
+
+        .card:hover::before {
+            top: -30%;
+            left: -30%;
+        }
+
+        .card .emoji {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            display: inline-block;
+            animation: floaty 3.5s ease-in-out infinite;
+        }
+
+        @keyframes floaty {
+
+            0%,
+            100% {
+                transform: translateY(0) rotate(-2deg);
+            }
+
+            50% {
+                transform: translateY(-12px) rotate(2deg);
+            }
+        }
+
+        .card h3 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .card .desc {
+            color: var(--muted);
+            font-size: .95rem;
+            line-height: 1.6;
+            margin-bottom: 22px;
+            min-height: 60px;
+        }
+
+        .card .price {
+            font-size: 2rem;
+            font-weight: 900;
+        }
+
+        .card .price small {
+            font-size: .9rem;
+            color: var(--muted);
+            font-weight: 400;
+        }
+
+        .card .per {
+            color: var(--muted);
+            font-size: .85rem;
+            margin-bottom: 22px;
+        }
+
+        .card .features {
+            list-style: none;
+            margin-bottom: 28px;
+        }
+
+        .card .features li {
+            color: var(--muted);
+            font-size: .9rem;
+            padding: 5px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card .features li::before {
+            content: '✓';
+            color: var(--lime);
+            font-weight: 700;
+        }
+
+        .tag {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: rgba(163, 230, 53, .12);
+            color: var(--lime);
+            border: 1px solid rgba(163, 230, 53, .3);
+        }
+
+        .tag.hot {
+            background: rgba(244, 63, 94, .12);
+            color: #fb7185;
+            border-color: rgba(244, 63, 94, .3);
+        }
+
+        .card .buy {
+            width: 100%;
+        }
+
+        /* ===== LOGIN MODAL ===== */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(0, 0, 0, .7);
+            backdrop-filter: blur(8px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+            animation: fadeIn .25s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal {
+            background: var(--card);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 24px;
+            padding: 44px;
+            width: min(92vw, 420px);
+            animation: modalPop .35s cubic-bezier(.2, .9, .3, 1.3);
+            text-align: center;
+            position: relative;
+        }
+
+        @keyframes modalPop {
+            from {
+                opacity: 0;
+                transform: scale(.9) translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .modal h3 {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        .modal p {
+            color: var(--muted);
+            font-size: .9rem;
+            margin-bottom: 26px;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 15px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, .15);
+            background: rgba(255, 255, 255, .05);
+            color: var(--text);
+            font-size: 1.05rem;
+            outline: none;
+            transition: .s;
+            margin-bottom: 16px;
+        }
+
+        .modal input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, .15);
+        }
+
+        .modal .close {
+            position: absolute;
+            top: 14px;
+            right: 20px;
+            cursor: pointer;
+            color: var(--muted);
+            font-size: 1.4rem;
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120px);
+            background: var(--card);
+            border: 1px solid rgba(163, 230, 53, .4);
+            color: var(--text);
+            padding: 16px 28px;
+            border-radius: 999px;
+            font-weight: 600;
+            z-index: 300;
+            transition: .4s cubic-bezier(.2, .9, .3, 1.2);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+            max-width: 90vw;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px;
+            color: var(--muted);
+            font-size: .85rem;
+            border-top: 1px solid rgba(255, 255, 255, .06);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="aurora"></div>
+    <div class="grid-overlay"></div>
+
+    <nav>
+        <div class="logo"><span class="pulse-dot"></span> PulseFit</div>
+        <button class="cta-mini" id="navBtn">Join Now</button>
+    </nav>
+
+    <section class="hero">
+        <span class="badge">⚡ 2,400+ members strong</span>
+        <h1>Train Beyond<br><span class="grad">Your Limits.</span></h1>
+        <p>Premium equipment. Elite coaches. A community that never lets you quit.
+            Your strongest self starts here.</p>
+        <div class="hero-cta">
+            <button class="btn-primary" onclick="scrollToShop()">Shop Gear & Plans</button>
+            <button class="btn-ghost" onclick="openLogin()">Free Trial Session</button>
+        </div>
+        <div class="scroll-cue">⌄</div>
+    </section>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="num">2,400+</div>
+            <div class="lbl">Members</div>
+        </div>
+        <div class="stat">
+            <div class="num">18</div>
+            <div class="lbl">Expert Coaches</div>
+        </div>
+        <div class="stat">
+            <div class="num">4.9★</div>
+            <div class="lbl">Google Rating</div>
+        </div>
+        <div class="stat">
+            <div class="num">24/7</div>
+            <div class="lbl">Access</div>
+        </div>
+    </div>
+
+    <section class="section" id="shop">
+        <div class="section-title">
+            <h2>Gear & Memberships</h2>
+            <div class="accent-line"></div>
+        </div>
+        <div class="products">
+
+            <div class="card">
+                <span class="tag hot">🔥 Bestseller</span>
+                <div class="emoji">🥤</div>
+                <h3>Protein Shaker Pro</h3>
+                <p class="desc">Leak-proof 700ml, steel-core mixing ball, BPA-free.
+                    The last shaker you'll ever buy.</p>
+                <div class="price">₹799</div>
+                <div class="per">one-time · free shipping</div>
+                <ul class="features">
+                    <li>700ml capacity</li>
+                    <li>Leak-proof lock lid</li>
+                    <li>Dishwasher safe</li>
+                </ul>
+                <button class="btn-primary buy" id="btn-shaker" onclick="buy('shaker')">Buy Now</button>
+            </div>
+
+            <div class="card">
+                <span class="tag">⭐ Most Popular</span>
+                <div class="emoji">🏋️</div>
+                <h3>Pro Membership</h3>
+                <p class="desc">Full gym access, all classes, nutrition plan,
+                    and progress tracking app included.</p>
+                <div class="price">₹1,499 <small>/month</small></div>
+                <div class="per">auto-renews · cancel anytime</div>
+                <ul class="features">
+                    <li>24/7 gym access</li>
+                    <li>All group classes</li>
+                    <li>Personalized nutrition plan</li>
+                    <li>Monthly body scan</li>
+                </ul>
+                <button class="btn-primary buy" id="btn-membership" onclick="buy('membership')">Subscribe Now</button>
+            </div>
+
+            <div class="card">
+                <span class="tag">💎 Premium</span>
+                <div class="emoji">💪</div>
+                <h3>Elite Annual</h3>
+                <p class="desc">Everything in Pro, plus quarterly personal
+                    training blocks and guest passes.</p>
+                <div class="price">₹14,999 <small>/year</small></div>
+                <div class="per">save 17% vs monthly</div>
+                <ul class="features">
+                    <li>Everything in Pro</li>
+                    <li>12 PT sessions/year</li>
+                    <li>3 guest passes/month</li>
+                </ul>
+                <button class="btn-ghost buy" id="btn-elite" onclick="buy('elite')">Get Elite</button>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- LOGIN MODAL -->
+    <div class="modal-backdrop" id="loginModal">
+        <div class="modal">
+            <span class="close" onclick="closeLogin()">✕</span>
+            <h3>Join PulseFit</h3>
+            <p>Sign in with your WhatsApp number — we'll reach you there.</p>
+            <input type="tel" id="phone" placeholder="+91 98765 43210" maxlength="13">
+            <button class="btn-primary" style="width:100%" onclick="login()">Continue →</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <footer>PulseFit · Powered by secure Razorpay payments · © 2025</footer>
+
+    <script>
+        // ================= STATE =================
+        let customerPhone = localStorage.getItem('pulsefit_phone') || null;
+        const API = 'http://localhost:8000';
+
+        // ================= SCROLL REVEAL =================
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+        }, { threshold: 0.15 });
+        document.querySelectorAll('.card').forEach((c, i) => {
+            c.style.transitionDelay = (i * 0.12) + 's';
+            observer.observe(c);
+        });
+
+        // ================= HELPERS =================
+        function toast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 4000);
+        }
+        function scrollToShop() { document.getElementById('shop').scrollIntoView({ behavior: 'smooth' }); }
+        function openLogin() { document.getElementById('loginModal').classList.add('open'); }
+        function closeLogin() { document.getElementById('loginModal').classList.remove('open'); }
+
+        // ================= NAV SESSION STATE =================
+        function updateNav() {
+            const btn = document.getElementById('navBtn');
+            if (customerPhone) {
+                btn.textContent = '👋 +' + customerPhone.slice(-10);
+                btn.onclick = function () {
+                    customerPhone = null;
+                    localStorage.removeItem('pulsefit_phone');
+                    updateNav();
+                    toast('Signed out. See you soon! 👋');
+                };
+            } else {
+                btn.textContent = 'Join Now';
+                btn.onclick = openLogin;
+            }
+        }
+        updateNav(); // restore session on page load
+
+        // ================= LOGIN =================
+        function login() {
+            const phone = document.getElementById('phone').value.trim();
+            if (phone.replace(/\D/g, '').length < 10) { toast('⚠️ Enter a valid phone number'); return; }
+            customerPhone = phone.replace(/\D/g, '');
+            localStorage.setItem('pulsefit_phone', customerPhone);
+            closeLogin();
+            updateNav();
+            toast('✅ Welcome to PulseFit! Signed in as +91 ' + customerPhone.slice(-10));
+        }
+
+        // ================= BUY FLOW =================
+        async function buy(plan) {
+            if (!customerPhone) {
+                openLogin();
+                toast('📱 Sign in with your WhatsApp number first');
+                return;
+            }
+            const btn = document.getElementById('btn-' + plan);
+            btn.disabled = true;
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Opening checkout…';
+            toast('⏳ Creating secure checkout…');
+
+            try {
+                const res = await fetch(`${API}/create-order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: plan, phone: customerPhone }),
+                });
+                if (!res.ok) throw new Error('order failed: ' + res.status);
+                const data = await res.json();
+
+                const rzp = new Razorpay({
+                    key: data.key_id,
+                    amount: data.amount,
+                    currency: 'INR',
+                    name: 'PulseFit',
+                    description: data.description,
+                    order_id: data.order_id,
+                    prefill: { contact: customerPhone },
+                    theme: { color: '#7c3aed' },
+                    modal: {
+                        ondismiss: function () {
+                            toast('Checkout closed — payment not completed.');
+                            btn.disabled = false;
+                            btn.textContent = originalText;
+                        }
+                    },
+                    handler: function (response) {
+                        toast('🎉 Payment successful! Verifying…');
+                        fetch(`${API}/verify-payment`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(response),
+                        })
+                            .then(r => r.json())
+                            .then(v => {
+                                if (v.verified) {
+                                    toast('✅ Payment verified & recorded. Welcome aboard!');
+                                    btn.textContent = '✅ Purchased!';
+                                } else {
+                                    toast('⚠️ Could not verify payment — support will contact you.');
+                                    btn.disabled = false;
+                                    btn.textContent = originalText;
+                                }
+                            })
+                            .catch(() => {
+                                toast('⚠️ Verification failed — backend unreachable.');
+                                btn.disabled = false;
+                                btn.textContent = originalText;
+                            });
+                    },
+                });
+                rzp.open();
+
+                // restore button if user just closes without paying (handled by ondismiss too)
+                setTimeout(() => { btn.disabled = false; btn.textContent = originalText; }, 60000);
+
+            } catch (err) {
+                console.error(err);
+                toast('❌ Backend not reachable — is `python main.py` running?');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+    </script>
+
+    <!-- Razorpay Checkout SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</body>
+
+</html>
