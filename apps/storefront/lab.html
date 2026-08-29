@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>RecoverFlow — Failure Zoo Lab</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', monospace, sans-serif;
+            background: #0a0f0a;
+            color: #d1fae5;
+            padding: 40px;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            border-bottom: 2px solid #22c55e;
+            padding-bottom: 12px;
+            margin-bottom: 8px;
+        }
+
+        p.sub {
+            color: #6ee7b7;
+            margin-bottom: 32px;
+            font-size: .9rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            max-width: 1100px;
+        }
+
+        button {
+            background: #052e16;
+            color: #86efac;
+            border: 1px solid #22c55e;
+            padding: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: left;
+            font-size: .95rem;
+            transition: .2s;
+        }
+
+        button:hover {
+            background: #14532d;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(34, 197, 94, .3);
+        }
+
+        button b {
+            display: block;
+            font-size: 1.05rem;
+            margin-bottom: 4px;
+            color: #f0fdf4;
+        }
+
+        .out {
+            margin-top: 32px;
+            max-width: 1100px;
+            background: #01140b;
+            border: 1px solid #14532d;
+            border-radius: 10px;
+            padding: 20px;
+            font-size: .85rem;
+            white-space: pre-wrap;
+            display: none;
+        }
+
+        input {
+            background: #01140b;
+            border: 1px solid #14532d;
+            color: #d1fae5;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            width: 300px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🦁 RecoverFlow — Failure Zoo Lab</h1>
+    <p class="sub">Generate payment failures on demand. Each button files a case in the agent's queue.</p>
+
+    <input id="phone" placeholder="customer phone" value="917989342710">
+
+    <div class="grid">
+        <button onclick="sim('declined_card')"><b>💳 Card Declined</b>Bank refused the charge — HSM-4002</button>
+        <button onclick="sim('insufficient_funds')"><b>💸 Insufficient Funds</b>Balance too low — NPCI-IF-001</button>
+        <button onclick="sim('expired_card')"><b>📅 Expired Card</b>Stored card expired — HSM-4006</button>
+        <button onclick="sim('abandoned')"><b>🚪 Checkout Abandoned</b>Customer walked away — UI-ABANDON</button>
+        <button onclick="sim('stale_mandate')"><b>🔁 Stale Mandate</b>Auto-debit revoked — NPCI-MANDATE-REVOKED</button>
+        <button onclick="testScope()"><b>🛑 Scope Test: Try to recover a COD order</b>Agent must REFUSE — COD has no
+            online payment</button>
+    </div>
+
+    <div class="out" id="out"></div>
+
+    <script>
+        const API = 'http://localhost:8000';
+
+        async function sim(type) {
+            const res = await fetch(`${API}/simulate-failure`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan: 'membership', phone: document.getElementById('phone').value, failure_type: type }),
+            });
+            const data = await res.json();
+            const out = document.getElementById('out');
+            out.style.display = 'block';
+            out.textContent = 'CASE FILED ✅\n\n' + JSON.stringify(data, null, 2);
+        }
+
+        async function testScope() {
+            const orders = await (await fetch(`${API}/orders`)).json();
+            const cod = orders.find(o => o.payment_method === 'cod');
+            const out = document.getElementById('out');
+            out.style.display = 'block';
+            if (!cod) { out.textContent = 'No COD order found — create one on the storefront first.'; return; }
+            const verdict = await (await fetch(`API/recovery−scope/{API}/recovery-scope/API/recovery−scope/{cod.order_id}`)).json();
+            out.textContent = 'AGENT SCOPE CHECK\n\n' + JSON.stringify(verdict, null, 2);
+        }
+    </script>
+</body>
+
+</html>

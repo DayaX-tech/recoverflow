@@ -236,6 +236,7 @@
             position: absolute;
             bottom: 30px;
             left: 50%;
+            transform: translateX(-50%);
             color: var(--muted);
             font-size: 1.4rem;
             animation: bounce 1.8s infinite;
@@ -276,12 +277,16 @@
             border-bottom: 1px solid rgba(255, 255, 255, .06);
         }
 
+        .stat {
+            text-align: center;
+        }
+
         .stat .num {
             font-size: 2.4rem;
             font-weight: 900;
             background: linear-gradient(90deg, var(--accent2), var(--accent));
             -webkit-background-clip: text;
-            background-clip: ;
+            background-clip: text;
             color: transparent;
         }
 
@@ -290,7 +295,6 @@
             font-size: .85rem;
             text-transform: uppercase;
             letter-spacing: 2px;
-            text-align: center;
         }
 
         /* ===== PRODUCTS ===== */
@@ -528,7 +532,7 @@
             color: var(--text);
             font-size: 1.05rem;
             outline: none;
-            transition: .s;
+            transition: .25s;
             margin-bottom: 16px;
         }
 
@@ -640,6 +644,8 @@
                     <li>Dishwasher safe</li>
                 </ul>
                 <button class="btn-primary buy" id="btn-shaker" onclick="buy('shaker')">Buy Now</button>
+                <button class="btn-ghost buy" onclick="buyCOD('shaker')"
+                    style="margin-top:10px; padding:12px 36px; font-size:.95rem;">Cash on Delivery (+₹49)</button>
             </div>
 
             <div class="card">
@@ -691,55 +697,63 @@
 
     <div class="toast" id="toast"></div>
 
-    <footer>PulseFit · Powered by secure Razorpay payments · © 2025</footer>
+    <footer>PulseFit · Powered by secure Razorpay payments · COD available · © 2025</footer>
 
     <script>
         // ================= STATE =================
-        let customerPhone = localStorage.getItem('pulsefit_phone') || null;
-        const API = 'http://localhost:8000';
+        var customerPhone = localStorage.getItem('pulsefit_phone') || null;
+        var API = 'http://localhost:8000';
 
         // ================= SCROLL REVEAL =================
-        const observer = new IntersectionObserver(entries => {
-            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (e.isIntersecting) e.target.classList.add('visible');
+            });
         }, { threshold: 0.15 });
-        document.querySelectorAll('.card').forEach((c, i) => {
+        document.querySelectorAll('.card').forEach(function (c, i) {
             c.style.transitionDelay = (i * 0.12) + 's';
             observer.observe(c);
         });
 
         // ================= HELPERS =================
         function toast(msg) {
-            const t = document.getElementById('toast');
+            var t = document.getElementById('toast');
             t.textContent = msg;
             t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 4000);
+            setTimeout(function () { t.classList.remove('show'); }, 4000);
         }
-        function scrollToShop() { document.getElementById('shop').scrollIntoView({ behavior: 'smooth' }); }
+        function scrollToShop() {
+            document.getElementById('shop').scrollIntoView({ behavior: 'smooth' });
+        }
         function openLogin() { document.getElementById('loginModal').classList.add('open'); }
         function closeLogin() { document.getElementById('loginModal').classList.remove('open'); }
 
-        // ================= NAV SESSION STATE =================
-        function updateNav() {
-            const btn = document.getElementById('navBtn');
-            if (customerPhone) {
-                btn.textContent = '👋 +' + customerPhone.slice(-10);
-                btn.onclick = function () {
-                    customerPhone = null;
-                    localStorage.removeItem('pulsefit_phone');
-                    updateNav();
-                    toast('Signed out. See you soon! 👋');
-                };
-            } else {
-                btn.textContent = 'Join Now';
-                btn.onclick = openLogin;
+          // ================= NAV SESSION STATE =================
+            function updateNav() {
+                var btn = document.getElementById('navBtn');
+                if (customerPhone) {
+                    btn.textContent = '👋 +' + customerPhone.slice(-10);
+                    btn.onclick = function () {
+                        customerPhone = null;
+                        localStorage.removeItem('pulsefit_phone');
+                        updateNav();
+                        toast('Signed out. See you soon! 👋');
+                    };
+                } else {
+                    btn.textContent = 'Join Now';
+                    btn.onclick = openLogin;
+                }
             }
-        }
+
         updateNav(); // restore session on page load
 
         // ================= LOGIN =================
         function login() {
-            const phone = document.getElementById('phone').value.trim();
-            if (phone.replace(/\D/g, '').length < 10) { toast('⚠️ Enter a valid phone number'); return; }
+            var phone = document.getElementById('phone').value.trim();
+            if (phone.replace(/\D/g, '').length < 10) {
+                toast('⚠️ Enter a valid phone number');
+                return;
+            }
             customerPhone = phone.replace(/\D/g, '');
             localStorage.setItem('pulsefit_phone', customerPhone);
             closeLogin();
@@ -747,29 +761,29 @@
             toast('✅ Welcome to PulseFit! Signed in as +91 ' + customerPhone.slice(-10));
         }
 
-        // ================= BUY FLOW =================
+        // ================= BUY FLOW (Razorpay) =================
         async function buy(plan) {
             if (!customerPhone) {
                 openLogin();
                 toast('📱 Sign in with your WhatsApp number first');
                 return;
             }
-            const btn = document.getElementById('btn-' + plan);
+            var btn = document.getElementById('btn-' + plan);
             btn.disabled = true;
-            const originalText = btn.textContent;
+            var originalText = btn.textContent;
             btn.textContent = '⏳ Opening checkout…';
             toast('⏳ Creating secure checkout…');
 
             try {
-                const res = await fetch(`${API}/create-order`, {
+                var res = await fetch(API + '/create-order', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ plan: plan, phone: customerPhone }),
+                    body: JSON.stringify({ plan: plan, phone: customerPhone })
                 });
                 if (!res.ok) throw new Error('order failed: ' + res.status);
-                const data = await res.json();
+                var data = await res.json();
 
-                const rzp = new Razorpay({
+                var rzp = new Razorpay({
                     key: data.key_id,
                     amount: data.amount,
                     currency: 'INR',
@@ -780,20 +794,30 @@
                     theme: { color: '#7c3aed' },
                     modal: {
                         ondismiss: function () {
-                            toast('Checkout closed — payment not completed.');
+                            toast('⚠️ Payment not completed — logged for follow-up.');
                             btn.disabled = false;
                             btn.textContent = originalText;
+                            fetch(API + '/report-abandonment', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    order_id: data.order_id,
+                                    phone: customerPhone,
+                                    plan: plan,
+                                    amount: data.amount
+                                })
+                            });
                         }
                     },
                     handler: function (response) {
                         toast('🎉 Payment successful! Verifying…');
-                        fetch(`${API}/verify-payment`, {
+                        fetch(API + '/verify-payment', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(response),
+                            body: JSON.stringify(response)
                         })
-                            .then(r => r.json())
-                            .then(v => {
+                            .then(function (r) { return r.json(); })
+                            .then(function (v) {
                                 if (v.verified) {
                                     toast('✅ Payment verified & recorded. Welcome aboard!');
                                     btn.textContent = '✅ Purchased!';
@@ -803,23 +827,48 @@
                                     btn.textContent = originalText;
                                 }
                             })
-                            .catch(() => {
+                            .catch(function () {
                                 toast('⚠️ Verification failed — backend unreachable.');
                                 btn.disabled = false;
                                 btn.textContent = originalText;
                             });
-                    },
+                    }
                 });
                 rzp.open();
-
-                // restore button if user just closes without paying (handled by ondismiss too)
-                setTimeout(() => { btn.disabled = false; btn.textContent = originalText; }, 60000);
+                setTimeout(function () {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }, 60000);
 
             } catch (err) {
                 console.error(err);
                 toast('❌ Backend not reachable — is `python main.py` running?');
                 btn.disabled = false;
                 btn.textContent = originalText;
+            }
+        }
+
+        // ================= COD FLOW =================
+        async function buyCOD(plan) {
+            if (!customerPhone) {
+                openLogin();
+                toast('📱 Sign in with your WhatsApp number first');
+                return;
+            }
+            try {
+                var res = await fetch(API + '/create-cod-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: plan, phone: customerPhone })
+                });
+                var data = await res.json();
+                if (!res.ok) {
+                    toast('⚠️ ' + (data.detail || 'COD not available for this item'));
+                    return;
+                }
+                toast('✅ ' + data.message);
+            } catch (err) {
+                toast('❌ Backend not reachable — is `python main.py` running?');
             }
         }
     </script>
