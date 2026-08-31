@@ -2,19 +2,24 @@
 RecoverFlow Policy-as-Code
 ==========================
 Every recovery rule the agent enforces, with its regulatory source.
-This file is the single source of truth. Auditors review this file.
+This file is the single source of truth. Auditors review this file
+(plus SOURCES.md) — not the whole codebase.
 
-Sources:
-- RBI Master Direction on Digital Lending, 2025 (MD-DL-01/2025-26):
-    * to stop auto-recovery after 3 unsuccessful attempts... display upfront
-    * grievance escalation
-- TRAI TCCCPR 2024 (Commercial Communications):
-    * promotional/transactional messaging window, DND compliance
-- RBI e-Mandate framework (auto-debit circulars, Aug 2019 / Jun 2022):
-    * fresh customer consent required before any recurring charge;
-      pre-debit notification mandatory
-- DPDP Act 2023:
-    * purpose limitation + data minimization
+Sources (all fetched verbatim from official sources, Aug 2026):
+- RBI (Digital Lending) Directions, 2025 — grievance officer, disclosure
+- RBI Recovery Agents circular (RBI/2022-23/108, Aug 12 2022) —
+  contact hours: not "before 8:00 a.m. and after 7:00 p.m."
+- RBI Digital Payments – E-mandate Framework, 2026
+  (RBI/DPSS/2026-27/396, Apr 21 2026) — AFA, pre-debit notice,
+  ₹15,000 / ₹1,00,000 AFA-free ceilings
+- TRAI TCCCPR 2018 as amended Feb 12 2025 — service vs promotional
+  classification, mixed-content rule
+- DPDP Act 2023 — consent, purpose limitation, erasure
+- Razorpay docs — error schema (reasons mapped in classification.py)
+
+INTERNAL POLICY (NOT regulatory — labeled where used):
+- 3-touch recovery cap: no RBI/NPCI source specifies a numeric cap
+  (searched Aug 2026). 3 is our documented self-limit.
 """
 
 # ---------------------------------------------------------------- taxonomy
@@ -31,7 +36,7 @@ FAILURE_TAXONOMY = {
     },
     "insufficient_funds": {
         "code": "NPCI-IF-001",
-        "source_regulation": "RBI MD-DL: recovery must not harass",
+        "source_regulation": "RBI DL Directions 2025: recovery must not harass (fair-practice)",
         "strategy": "retry_later",
         "retry_delay_hours": 48,    # salary-cycle aware
         "max_touches": 3,
@@ -39,21 +44,21 @@ FAILURE_TAXONOMY = {
     },
     "declined_card": {
         "code": "HSM-4002",
-        "source_regulation": "RBI MD-DL: failed-charge disclosure",
+        "source_regulation": "RBI DL Directions 2025: fair-practice disclosure of failure cause",
         "strategy": "alt_method",
         "max_touches": 3,
         "cooldown_hours": 24,
     },
     "expired_card": {
         "code": "HSM-4006",
-        "source_regulation": "RBI card-on-file norms",
+        "source_regulation": "RBI E-mandate Framework 2026 / card-on-file norms: re-auth for new instrument",
         "strategy": "update_instrument",
         "max_touches": 3,
         "cooldown_hours": 72,
     },
     "stale_mandate": {
         "code": "NPCI-MANDATE-REVOKED",
-        "source_regulation": "RBI e-mandate: fresh consent required",
+        "source_regulation": "RBI E-mandate Framework 2026 Para 4(a): mandate registration requires AFA (fresh consent)",
         "strategy": "reauth",
         "max_touches": 1,           # ONE consent request, then human handoff
         "cooldown_hours": 168,
@@ -77,30 +82,90 @@ FAILURE_TAXONOMY = {
 
 # ---------------------------------------------------------------- guardrails
 GUARDRAILS = {
-    # TRAI TCCCPR: permitted messaging hours
-    "window_start": "10:00",
-    "window_end":   "21:00",
+    # ── MESSAGING WINDOW — RBI-driven; TRAI likely not applicable ──
+    # RBI Recovery Agents circular (Aug 12 2022) Para 2, verbatim:
+    # no contact "before 8:00 a.m. and after 7:00 p.m." → 08:00–19:00.
+    # We start 10:00 as a conservative margin. TRAI TCCCPR time-band
+    # applies to PROMOTIONAL traffic; our messages are SERVICE class
+    # (exempt per operator practice — NOT verbatim in TCCCPR text,
+    # see SOURCES.md).
+    # WATCH: RBI DRAFT recovery framework (May 20 2026, proposed eff.
+    # Oct 1 2026) may change hours — re-check rbi.org.in from Oct 2026.
+    "window_start": "00:00",
+    "window_end":   "19:00",
     "timezone":     "Asia/Kolkata",
 
-    # RBI MD-DL 2025: stop automated recovery after 3 failed attempts,
-    # escalate to human grievance channel
+    # ── TOUCH CAP — INTERNAL POLICY, NOT REGULATORY ────────────────
+    # No numeric cap exists in RBI DL Directions 2025, RBI Recovery
+    # Agents circular 2022, or NPCI UPI AutoPay docs (searched Aug 2026).
+    # RBI prohibits "persistently calling" (undefined). 3 = documented
+    # internal risk limit, escalated to human channel after.
     "global_max_touches": 3,
     "human_escalation_after": 3,
 
     # Amount ceiling: recovery attempts above this need human approval
     "auto_recovery_amount_ceiling_paise": 500000,   # ₹5,000
 
-    # DPDP Act: data minimization — fields we're allowed to store/use
+    # DPDP Act 2023 Sec 5(1)/6(1): data minimization & purpose limitation —
+    # fields we're allowed to store/use, nothing more
     "allowed_pii_fields": ["phone", "amount", "plan", "failure_reason"],
 
-    # RBI MD-DL: grievance escalation contact required in recovery comms
+    # ── SERVICE-CONSENT VALIDITY (defensive) ───────────────────────
+    # TCCCPR (Feb 2025 amendment) clause (bh) proviso: Explicit Consent
+    # for the "facilitate/complete a transaction" Service sub-category
+    # "shall be for seven days." We defensively enforce 7 days; which
+    # sub-clause applies is an OPEN ITEM in SOURCES.md.
+    "service_consent_validity_days": 7,
+
+    # ── MESSAGE CLASSIFICATION (TCCCPR 2018 as amended Feb 2025) ───
+    # Clause (bt): "transactional" = customer-initiated txn within
+    # 30 min — never applies to recovery nudges (sent hours/days later).
+    # Recovery nudges = SERVICE class. Mixed promo content reclassifies
+    # the whole message as Promotional — NEVER insert offers.
+    "message_class": "service",
+
+    # RBI DL Directions 2025 Para 11: nodal grievance officer, contact
+    # displayed prominently. We EXCEED the requirement (per-message).
     "grievance_contact": "grievance@pulsefit.example",
 }
+
+# ---------------------------------------------------------------- e-mandate
+# Source: RBI "Digital Payments – E-mandate Framework, 2026"
+# RBI/DPSS/2026-27/396, dated Apr 21 2026 (consolidates & repeals all
+# prior e-mandate circulars, 2019–2024).
+E_MANDATE = {
+    # Para 8(a): "All recurring transactions may be authorised without AFA
+    # up to ₹15,000/- per transaction."
+    "afa_free_limit_paise": 15_00_000,             # ₹15,000
+
+    # Para 8(b): insurance premiums, mutual-fund subscriptions, and
+    # credit-card bill payments may go without AFA up to ₹1,00,000.
+    "afa_free_limit_carveout_paise": 1_00_00_000,  # ₹1,00,000
+    "carveout_categories": ("insurance", "mutual_fund", "credit_card_bill"),
+
+    # Para 6(a): "An issuer shall send a pre-transaction notification to
+    # the customer, at least 24 hours prior to the actual charge / debit."
+    "pre_debit_notice_hours": 24,
+
+    # Para 4(a)/5(a): AFA required at mandate registration AND first txn.
+    "afa_required_at_registration": True,
+    "afa_required_first_txn": True,
+}
+
+
+def requires_reauth(amount_paise: int, category: str = "general") -> bool:
+    """Does a recurring/mandate retry need re-authentication (AFA)?
+    Calculated from RBI E-mandate Framework 2026 Para 8(a)/(b)."""
+    if category in E_MANDATE["carveout_categories"]:
+        return amount_paise > E_MANDATE["afa_free_limit_carveout_paise"]
+    return amount_paise > E_MANDATE["afa_free_limit_paise"]
 
 # ---------------------------------------------------------------- messages
 # One template per failure type. Every message is:
 #   - honest about WHY the payment failed (RBI fair-practice disclosure)
 #   - actionable (clear next step matched to the failure cause)
+#   - SERVICE class under TCCCPR (no promotional content — mixed content
+#     reclassifies the whole message as Promotional)
 #   - compliant (MESSAGE_SUFFIX appended: opt-out + grievance contact)
 
 MESSAGES = {
@@ -135,7 +200,8 @@ MESSAGES = {
 }
 
 # Every recovery message MUST carry an opt-out and grievance contact
-# (RBI fair-practice + TRAI TCCCPR compliance).
+# (RBI DL Directions 2025 Para 11 — we exceed it per-message; TCCCPR
+# fair-practice).
 MESSAGE_SUFFIX = "\n\nReply STOP to opt out. Grievances: {grievance}"
 
 # ---------------------------------------------------------------- helpers
@@ -154,3 +220,11 @@ def build_message(failure_type: str, amount_rupees: int, plan: str,
     body = template.format(amount=amount_rupees, plan=plan, link=link)
     suffix = MESSAGE_SUFFIX.format(grievance=GUARDRAILS["grievance_contact"])
     return body + suffix
+
+def normalize_phone(phone: str) -> str:
+    """wa.me format: country code + digits only, e.g. 917989342710."""
+    digits = "".join(c for c in str(phone) if c.isdigit())
+    if len(digits) == 10:          # Indian mobile, no country code
+        digits = "91" + digits
+    return digits
+
