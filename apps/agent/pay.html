@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complete Your Purchase</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: radial-gradient(1200px 600px at 20% -10%, #1e3a5f 0%, #0a0e17 55%);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .wrap {
+            width: 100%;
+            max-width: 440px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 28px;
+        }
+
+        .logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #00e08a, #00b4d8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .brand span {
+            font-weight: 800;
+            font-size: 20px;
+            letter-spacing: .5px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .12);
+            border-radius: 20px;
+            padding: 32px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #00e08a;
+            background: rgba(0, 224, 138, .12);
+            border: 1px solid rgba(0, 224, 138, .3);
+            padding: 5px 12px;
+            border-radius: 99px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 800;
+            line-height: 1.25;
+            margin-bottom: 8px;
+        }
+
+        .sub {
+            color: #9aa7b8;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        .plan {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, .05);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 12px;
+        }
+
+        .plan .name {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .plan .meta {
+            color: #9aa7b8;
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .price {
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .perks {
+            margin: 18px 0 24px;
+            list-style: none;
+        }
+
+        .perks li {
+            font-size: 13.5px;
+            color: #c3cdd9;
+            padding: 7px 0 7px 26px;
+            position: relative;
+        }
+
+        .perks li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #00e08a;
+            font-weight: 800;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: 0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            color: #04150c;
+            background: linear-gradient(135deg, #00e08a, #00d4b8);
+            box-shadow: 0 8px 24px rgba(0, 224, 138, .35);
+            transition: transform .15s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: .6;
+            cursor: wait;
+            transform: none;
+        }
+
+        .secure {
+            margin-top: 16px;
+            text-align: center;
+            font-size: 12px;
+            color: #8a97a8;
+        }
+
+        .done {
+            display: none;
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .done .tick {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 18px;
+            border-radius: 50%;
+            background: rgba(0, 224, 138, .15);
+            border: 2px solid #00e08a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+        }
+
+        .done h2 {
+            margin-bottom: 8px;
+        }
+
+        .done p {
+            color: #9aa7b8;
+            font-size: 14px;
+        }
+
+        .skeleton {
+            color: #5a6675;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="brand">
+            <div class="logo">⚡</div><span id="brandName">PulseFit</span>
+        </div>
+
+        <div class="card" id="payView">
+            <div class="badge">🔒 Your order is reserved — one step to finish</div>
+            <h1 id="headline">Your order is almost yours</h1>
+            <p class="sub" id="subtext">The earlier payment didn't go through — no worries, your order was reserved.
+                Complete it securely below, any payment method.</p>
+
+            <div class="plan">
+                <div>
+                    <div class="name" id="itemName">Loading your order…</div>
+                    <div class="meta" id="itemMeta">order reference: <span id="oidShort">—</span></div>
+                </div>
+                <div class="price" id="itemPrice">₹—</div>
+            </div>
+
+            <ul class="perks">
+                <li>Pay via UPI, card, netbanking or wallet — your choice</li>
+                <li>Instant confirmation on payment</li>
+                <li>Bank-grade Razorpay security · PCI-DSS</li>
+                <li>Full refund support if anything goes wrong</li>
+            </ul>
+
+            <button class="btn" id="payBtn">Complete Payment</button>
+            <div class="secure">🛡️ Secured by Razorpay</div>
+        </div>
+
+        <div class="card done" id="doneView">
+            <div class="tick">✓</div>
+            <h2>Payment successful! 🎉</h2>
+            <p id="doneText">Your order is confirmed. A receipt is on its way — thank you!</p>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(location.search);
+        const oid = params.get("oid");
+        const caseId = params.get("case");
+
+        // URL params override everything — the recovery engine controls the copy
+        const itemName = params.get("item");   // e.g. "PulseFit Shaker" / "Pro Membership"
+        const amount = params.get("amt");    // paise, e.g. 79900
+        const brand = params.get("brand");
+
+        document.getElementById("oidShort").textContent = oid ? oid.slice(-8) : "—";
+
+        function fmt(paise) { return "₹" + (paise / 100).toLocaleString("en-IN"); }
+
+        function render(name, paise) {
+            if (name) document.getElementById("itemName").textContent = name;
+            if (paise) document.getElementById("itemPrice").textContent = fmt(paise);
+            const btn = document.getElementById("payBtn");
+            if (paise) btn.textContent = "Complete Payment — " + fmt(paise);
+            if (brand) document.getElementById("brandName").textContent = brand;
+        }
+
+        // 1) instant render from URL (no waiting for API)
+        render(itemName, amount ? parseInt(amount) : null);
+
+        // 2) then try live data from agent API — overrides URL if present
+        fetch("http://localhost:8000/order_meta?oid=" + encodeURIComponent(oid))
+            .then(r => r.ok ? r.json() : null)
+            .then(meta => { if (meta) render(meta.item_name, meta.amount); })
+            .catch(() => { });   // offline demo? URL params already did the job
+
+        function payNow() {
+            const btn = document.getElementById("payBtn");
+            btn.disabled = true; btn.textContent = "Opening secure checkout…";
+            const rzp = new Razorpay({
+                key: "rzp_test_YOUR_KEY_ID",     // ⚠️ SAME key as index.html
+                order_id: oid,
+                name: brand || "PulseFit",
+                description: itemName || "Order " + (oid ? oid.slice(-8) : ""),
+                theme: { color: "#00b478" },
+                handler: function () {
+                    document.getElementById("payView").style.display = "none";
+                    const d = document.getElementById("doneView");
+                    d.style.display = "block";
+                    if (itemName || amount)
+                        document.getElementById("doneText").textContent =
+                            ((itemName || "Your order") + (amount ? " (" + fmt(parseInt(amount)) + ")" : ""))
+                            + " is confirmed. A receipt is on its way — thank you!";
+                },
+                modal: {
+                    ondismiss: function () {
+                        btn.disabled = false;
+                        btn.textContent = "Complete Payment";
+                    }
+                }
+            });
+            rzp.on("payment.failed", function () {
+                btn.disabled = false;
+                btn.textContent = "Try another method";
+            });
+            rzp.open();
+        }
+        document.getElementById("payBtn").onclick = payNow;
+    </script>
+</body>
+
+</html>

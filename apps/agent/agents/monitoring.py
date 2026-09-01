@@ -1,201 +1,215 @@
 """
-AGENT 1 — MONITORING
+RecoverFlow — AGENT 1: MONITORING
+=================================
 
-Responsibilities:
-- Verify Razorpay webhook signatures
-- Ingest payment events
-- Classify gateway failures
-- Prevent duplicate webhook cases
-- Ignore already-resolved orders
-- Record payment recovery
+The watcher & file-keeper.
 
-Never:
-- Make recovery decisions
-- Compose customer messages
-- Execute recovery actions
+Owns the webhook front door:
+  1. Verify Razorpay webhook signatures (HMAC)
+  2. Ingest payment.failed / payment.captured events
+  3. Dedupe Razorpay webhook retries
+  4. Classify the failure via classification.py
+  5. File a case in failed_payments + audit ledger
+  6. Hand off to AGENT 2 (diagnosis) via should_diagnose flag
+
+Design rule:
+This agent has NO opinions.
+It observes, files, and wakes the brain.
+All strategy lives in AGENT 2 + policy.py.
 """
 
-import hashlib
 import hmac
+import hashlib
 import os
 from datetime import datetime
 
 from core import db, audit_log
 
 
-def verify_signature(raw_body: bytes, signature: str) -> bool:
-    """Verify Razorpay webhook HMAC-SHA256 signature."""
-    secret = os.getenv(
-        "RAZORPAY_WEBHOOK_SECRET",
-        "rf_webhook_secret_2025",
-    )
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+WEBHOOK_SECRET = os.getenv(
+    "RAZORPAY_WEBHOOK_SECRET",
+    "rf_webhook_secret_2025"
+)
+
+
+# ============================================================
+# 1. SIGNATURE VERIFICATION
+# ============================================================
+
+def verify_signature(body: bytes, signature: str) -> bool:
+    """
+    Verify Razorpay webhook HMAC-SHA256 signature.
+
+    Never trust an unverified webhook event.
+    """
+
+    if not signature:
+        return False
 
     expected = hmac.new(
-        secret.encode(),
-        raw_body,
-        hashlib.sha256,
+        WEBHOOK_SECRET.encode("utf-8"),
+        body,
+        hashlib.sha256
     ).hexdigest()
 
-    return hmac.compare_digest(expected, signature or "")
+    return hmac.compare_digest(expected, signature)
 
+
+# ============================================================
+# 2. FAILURE INGESTION
+# ============================================================
 
 def handle_failed_payment(ent: dict, orders_lookup) -> dict:
     """
-    Process a Razorpay payment.failed event.
+    Handle a Razorpay payment.failed event.
 
-    One Razorpay order = one webhook-sourced failure case.
-    Repeated webhook deliveries update the existing case.
+    Parameters
+    ----------
+    ent:
+        Razorpay payment entity.
+
+    orders_lookup:
+        Callable:
+            order_id -> order row
+        Returns None when the order is not found.
+
+    Returns
+    -------
+    dict:
+        Result consumed by main.py.
+
+    If should_diagnose=True, main.py should wake Agent 2.
     """
 
-    from classification import classify_gateway_error
+    # IMPORTANT:
+    # The previous version attempted:
+    #
+    #     from classification import classify_gateway_error
+    #
+    # But classification.py does not expose that function.
+    #
+    # The RecoverFlow design uses `classify(ent)` instead.
+    from classification import classify
 
-    err = ent.get("error_description", "unknown error")
-    code = ent.get("error_code", "?")
+    order_id = ent.get("order_id") or "unknown"
 
-    failure_type = classify_gateway_error(err, code)
-
-    order_id = ent.get(
-        "order_id",
-        f"case_{int(datetime.now().timestamp())}",
-    )
-
-    # ---------------------------------------------------------
-    # BUSINESS IDEMPOTENCY
-    # Never create recovery cases for already-resolved orders.
-    # ---------------------------------------------------------
-    with db() as conn:
-        order = conn.execute(
-            "SELECT status FROM orders WHERE order_id=?",
-            (order_id,),
-        ).fetchone()
-
-    if order and order["status"] in ("paid", "cod_confirmed"):
-        audit_log(
-            "monitoring",
-            "case.skipped_already_resolved",
-            order_id,
-            {"order_status": order["status"]},
-        )
-
-        return {
-            "handled": "failed_ignored",
-            "reason": f"order_{order['status']}",
-        }
-
-    # Razorpay may provide contact/amount directly.
-    # Fall back to our orders table when necessary.
-    phone = ent.get("contact") or ""
-    plan = "membership"
-    amount = ent.get("amount", 0)
-
-    if not phone or amount == 0:
-        order_row = orders_lookup(order_id)
-
-        if order_row:
-            phone = phone or order_row["phone"]
-            plan = plan if amount else order_row["plan"]
-            amount = amount or order_row["amount"]
-
-    detail = f"{err} [{code}]"
-
-    outcome = _file_or_update_webhook_case(
-        order_id=order_id,
-        phone=phone,
-        plan=plan,
-        amount=amount,
-        failure_type=failure_type,
-        detail=detail,
-    )
-
-    return {
-        "handled": "failed",
-        "case_id": order_id,
-        "classified_as": failure_type,
-        "case": outcome,
-        "should_diagnose": outcome == "filed",
-    }
-
-
-def _file_or_update_webhook_case(
-    order_id,
-    phone,
-    plan,
-    amount,
-    failure_type,
-    detail,
-):
-    """
-    Webhook idempotency.
-
-    A webhook retry updates the existing webhook case instead
-    of inserting another failure record.
-    """
+    # ========================================================
+    # DEDUPE
+    # ========================================================
+    #
+    # Razorpay can retry webhooks.
+    # One failed payment should create one recovery case.
+    #
 
     with db() as conn:
         existing = conn.execute(
             """
-            SELECT id
+            SELECT id, failure_type
             FROM failed_payments
             WHERE order_id=?
-              AND failure_source='webhook'
             """,
-            (order_id,),
+            (order_id,)
         ).fetchone()
 
-        if existing:
-            conn.execute(
-                """
-                UPDATE failed_payments
-                SET failure_type=?,
-                    raw_detail=?,
-                    status='open'
-                WHERE order_id=?
-                  AND failure_source='webhook'
-                """,
-                (
-                    failure_type,
-                    detail,
-                    order_id,
-                ),
-            )
-            conn.commit()
+    if existing:
+        audit_log(
+            "monitoring",
+            "case.duplicate_ignored",
+            order_id,
+            {
+                "existing_failure_type": existing["failure_type"]
+            }
+        )
 
-            audit_log(
-                "monitoring",
-                "case.updated",
-                order_id,
-                {"failure_type": failure_type},
-            )
+        return {
+            "handled": True,
+            "duplicate": True,
+            "case_id": order_id,
+            "should_diagnose": False
+        }
 
-            return "updated"
+    # ========================================================
+    # CLASSIFICATION
+    # ========================================================
+    #
+    # classification.py is the vendor mapping layer.
+    #
+    # Expected return:
+    #
+    #     failure_type,
+    #     recommended_action,
+    #     detail
+    #
 
-    _file_case(
-        order_id,
-        phone,
-        plan,
-        amount,
-        failure_type,
-        "webhook",
-        detail,
+    try:
+        ftype, recommended_action, detail = classify(ent)
+
+    except Exception as exc:
+        # Monitoring should not silently crash the webhook
+        # because a classification rule failed.
+        #
+        # Record the problem and use a safe generic classification.
+        audit_log(
+            "monitoring",
+            "classification.failed",
+            order_id,
+            {
+                "error": str(exc),
+                "source": "webhook"
+            }
+        )
+
+        ftype = "unknown"
+        recommended_action = "diagnose"
+        detail = f"classification_error: {str(exc)}"
+
+    # ========================================================
+    # ENRICH ORDER INFORMATION
+    # ========================================================
+
+    order = (
+        orders_lookup(order_id)
+        if order_id != "unknown"
+        else None
     )
 
-    return "filed"
+    if order:
+        phone = order["phone"]
+        plan = order["plan"]
+        amount = order["amount"]
 
+    else:
+        # Webhook belongs to an order that does not exist
+        # in our local orders table.
+        #
+        # Still file the case using Razorpay entity data.
 
-def _file_case(
-    order_id,
-    phone,
-    plan,
-    amount,
-    failure_type,
-    source,
-    detail,
-):
-    """Create a new failure case."""
+        phone = ent.get("contact") or "unknown"
+        plan = "unknown"
+        amount = ent.get("amount") or 0
+
+        audit_log(
+            "monitoring",
+            "case.order_not_found",
+            order_id,
+            {
+                "fallback": "filed_from_webhook_entity_only"
+            }
+        )
+
+    # ========================================================
+    # FILE CASE
+    # ========================================================
+
     with db() as conn:
         conn.execute(
             """
-            INSERT INTO failed_payments (
+            INSERT INTO failed_payments
+            (
                 order_id,
                 phone,
                 plan,
@@ -212,85 +226,128 @@ def _file_case(
                 phone,
                 plan,
                 amount,
-                failure_type,
-                source,
+                ftype,
+                "webhook",
                 detail,
-                datetime.now().isoformat(),
-            ),
+                datetime.now().isoformat()
+            )
         )
 
+    # ========================================================
+    # AUDIT LEDGER
+    # ========================================================
+
     audit_log(
-        source,
+        "monitoring",
         "case.filed",
         order_id,
         {
-            "failure_type": failure_type,
-            "source": source,
-        },
+            "failure_type": ftype,
+            "recommended_action": recommended_action,
+            "source": "webhook",
+            "detail": detail
+        }
     )
 
+    # ========================================================
+    # WAKE AGENT 2
+    # ========================================================
+
+    return {
+        "handled": True,
+        "duplicate": False,
+        "case_id": order_id,
+        "failure_type": ftype,
+        "recommended_action": recommended_action,
+        "should_diagnose": True
+    }
+
+
+# ============================================================
+# 3. SUCCESS INGESTION
+# ============================================================
 
 def handle_captured_payment(ent: dict) -> dict:
     """
-    Handle payment.captured.
+    Handle Razorpay payment.captured.
 
-    Marks the original order as paid and closes a recovery
-    case when the payment came through a retry execution.
+    If a customer previously had an open recovery case and
+    subsequently paid, mark the case as recovered.
+
+    This prevents additional recovery actions after payment.
     """
 
-    order_id = ent.get("order_id", "?")
-    payment_id = ent.get("id", "")
+    order_id = ent.get("order_id") or "unknown"
+
+    # ========================================================
+    # FIND OPEN CASE
+    # ========================================================
 
     with db() as conn:
-        conn.execute(
-            "UPDATE orders SET status='paid' WHERE order_id=?",
-            (order_id,),
-        )
-
-        execution = conn.execute(
+        row = conn.execute(
             """
-            SELECT *
-            FROM executions
+            SELECT id
+            FROM failed_payments
             WHERE order_id=?
-            LIMIT 1
+              AND status='open'
             """,
-            (payment_id,),
+            (order_id,)
         ).fetchone()
 
-        if execution:
-            case_id = execution["case_id"]
+        # ====================================================
+        # CLOSE RECOVERY CASE
+        # ====================================================
 
-            conn.execute(
-                """
-                UPDATE executions
-                SET status='paid'
-                WHERE order_id=?
-                """,
-                (payment_id,),
-            )
-
+        if row:
             conn.execute(
                 """
                 UPDATE failed_payments
                 SET status='recovered'
                 WHERE order_id=?
+                  AND status='open'
                 """,
-                (case_id,),
+                (order_id,)
             )
 
-            audit_log(
-                "monitoring",
-                "recovery.success",
-                case_id,
-                {
-                    "via": "retry_link",
-                    "amount": ent.get("amount"),
-                },
-            )
+    # ========================================================
+    # CASE RECOVERED
+    # ========================================================
 
-        conn.commit()
+    if row:
+        audit_log(
+            "monitoring",
+            "case.recovered",
+            order_id,
+            {
+                "note": (
+                    "customer paid after recovery touch — "
+                    "case closed"
+                )
+            }
+        )
+
+        return {
+            "handled": True,
+            "recovered": True,
+            "case_id": order_id
+        }
+
+    # ========================================================
+    # NO OPEN CASE
+    # ========================================================
+
+    audit_log(
+        "monitoring",
+        "payment.captured",
+        order_id,
+        {
+            "source": "webhook"
+        }
+    )
 
     return {
-        "handled": "captured",
-        "order_id": order_id,
+        "handled": True,
+        "recovered": False,
+        "case_id": order_id
     }
+

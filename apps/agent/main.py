@@ -33,6 +33,9 @@ import audit
 from core import db, audit_log, messaging_allowed_now
 from agents import monitoring, diagnosis, action, scheduler
 
+from fastapi.responses import FileResponse
+import os
+
 
 # ============================================================
 # ENVIRONMENT
@@ -950,6 +953,20 @@ def audit_verify():
     return result
 
 
+@app.get("/pay.html")
+def recovery_page():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "pay.html"))
+
+@app.get("/order_meta")
+def order_meta(oid: str):
+    with db() as conn:
+        row = conn.execute("SELECT plan, amount FROM orders WHERE order_id=?", (oid,)).fetchone()
+        if row:
+            return {"item_name": row["plan"], "amount": row["amount"]}
+        return {"item_name": None, "amount": None}
+
+
+
 # ============================================================
 # START SERVER
 # ============================================================
@@ -963,3 +980,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
     )
+

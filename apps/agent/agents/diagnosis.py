@@ -14,9 +14,13 @@ Never:
 - Execute recovery
 """
 
-from datetime import datetime
+from core import (
+    db,
+    audit_log,
+    messaging_allowed_now,
+    get_now,
+)
 
-from core import db, audit_log, messaging_allowed_now
 import policy
 
 
@@ -31,6 +35,10 @@ def diagnose(case_id: str = None) -> dict:
         escalated
         human_handoff
     """
+
+    # =========================================================
+    # LOAD OPEN CASES
+    # =========================================================
 
     with db() as conn:
         if case_id:
@@ -49,10 +57,15 @@ def diagnose(case_id: str = None) -> dict:
                 SELECT *
                 FROM failed_payments
                 WHERE status='open'
+                ORDER BY id ASC
                 """
             ).fetchall()
 
     decisions = []
+
+    # =========================================================
+    # DIAGNOSE EACH CASE
+    # =========================================================
 
     for row in rows:
         case = dict(row)
@@ -65,6 +78,7 @@ def diagnose(case_id: str = None) -> dict:
         # =====================================================
         # GATE 1 — JURISDICTION
         # =====================================================
+
         if case["failure_source"] == "cod":
             decision = {
                 "case_id": case["order_id"],
@@ -83,6 +97,7 @@ def diagnose(case_id: str = None) -> dict:
         # =====================================================
         # GATE 2 — UNKNOWN / UNCLASSIFIED FAILURE
         # =====================================================
+
         elif (
             case["failure_type"] == "unknown_failure"
             or "strategy" not in taxonomy
@@ -106,6 +121,7 @@ def diagnose(case_id: str = None) -> dict:
             # =================================================
             # GATE 3 — TOUCH CAP
             # =================================================
+
             with db() as conn:
                 nudges = conn.execute(
                     """
@@ -145,7 +161,13 @@ def diagnose(case_id: str = None) -> dict:
                 # =============================================
                 # GATE 4 — TRAI MESSAGING WINDOW
                 # =============================================
-                allowed, reason = messaging_allowed_now()
+
+                # IMPORTANT:
+                # The virtual clock is owned by core.py.
+                # Never use datetime.now() here.
+                now = get_now()
+
+                allowed, reason = messaging_allowed_now(now)
 
                 if not allowed:
                     decision = {
@@ -161,8 +183,9 @@ def diagnose(case_id: str = None) -> dict:
                     }
 
                 else:
-                    # Message is intentionally NOT created here.
-                    # ACTION owns customer-facing message creation.
+                    # Message creation belongs to Agent 3 / ACTION.
+                    # Agent 2 only decides the strategy.
+
                     decision = {
                         "case_id": case["order_id"],
                         "failure_type": case["failure_type"],
@@ -181,6 +204,10 @@ def diagnose(case_id: str = None) -> dict:
                         "status": "decided",
                     }
 
+        # =====================================================
+        # RECORD DECISION
+        # =====================================================
+
         _record_decision(case, decision)
         decisions.append(decision)
 
@@ -190,8 +217,19 @@ def diagnose(case_id: str = None) -> dict:
     }
 
 
+# =============================================================
+# RECORD DECISION
+# =============================================================
+
 def _record_decision(case: dict, decision: dict) -> None:
-    """Persist the diagnosis decision and audit it."""
+    """
+    Persist the diagnosis decision and audit it.
+
+    `created_at` uses the shared virtual clock so the demo
+    database remains consistent with the simulated time.
+
+    Queued cases remain open so Agent 4 can find them later.
+    """
 
     with db() as conn:
         conn.execute(
@@ -220,12 +258,15 @@ def _record_decision(case: dict, decision: dict) -> None:
                 decision["message"],
                 decision["reasoning"],
                 decision["status"],
-                datetime.now().isoformat(),
+                get_now().isoformat(),
             ),
         )
 
-        # A queued case remains open because Scheduler must be able
-        # to find it and retry diagnosis later.
+        # Queued cases remain OPEN.
+        #
+        # Any other terminal/intermediate decision moves the
+        # failed payment out of the scheduler's open queue.
+
         if decision["status"] != "queued":
             conn.execute(
                 """
@@ -247,3 +288,4 @@ def _record_decision(case: dict, decision: dict) -> None:
             "reasoning": decision["reasoning"],
         },
     )
+

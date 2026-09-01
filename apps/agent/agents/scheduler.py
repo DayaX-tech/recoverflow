@@ -4,7 +4,7 @@ AGENT 4 — SCHEDULER
 The heartbeat.
 
 Responsibilities:
-- Own the demo virtual clock
+- Use the virtual clock owned by core.py
 - Wake open cases after their cooldown
 - Re-run diagnosis when cases become eligible
 - Keep scheduling separate from business decisions
@@ -19,49 +19,58 @@ Demo:
     frontend ⏩ time-travel button
 """
 
-import threading
 from datetime import datetime, timedelta, timezone
 
-from core import db, audit_log
+from core import (
+    db,
+    audit_log,
+    get_now,
+    set_clock_offset,
+)
 
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
-# Demo-only virtual clock offset.
-_offset = timedelta(0)
 
-# Prevent concurrent jump/reset operations.
-_lock = threading.Lock()
-
-
-def _now() -> datetime:
-    """Return the current virtual IST time."""
-    with _lock:
-        current_offset = _offset
-
-    return datetime.now(IST) + current_offset
-
+# ============================================================
+# DEMO CLOCK
+# ============================================================
 
 def jump(hours: float) -> str:
     """
-    Move the demo clock forward.
+    Move the demo virtual clock forward by `hours`.
 
     Example:
         jump(2)
-        -> virtual time moves forward by 2 hours.
 
-    This affects scheduler timing only.
-    It does not modify database timestamps.
+    sets the virtual clock to:
+
+        real IST + 2 hours
+
+    The clock itself is owned by core.py.
     """
 
     if hours < 0:
         raise ValueError("hours must be >= 0")
 
-    global _offset
+    # IMPORTANT:
+    # set_clock_offset() is a SETTER, not an incrementer.
+    #
+    # Therefore we read the current virtual time and calculate
+    # the new offset relative to real IST.
 
-    with _lock:
-        _offset += timedelta(hours=hours)
-        virtual_now = datetime.now(IST) + _offset
+    current_virtual = get_now()
+    current_real = datetime.now(IST)
+
+    current_offset = (
+        current_virtual - current_real
+    ).total_seconds() / 3600
+
+    new_offset = current_offset + hours
+
+    set_clock_offset(new_offset)
+
+    virtual_now = get_now()
 
     audit_log(
         "scheduler",
@@ -70,6 +79,7 @@ def jump(hours: float) -> str:
         {
             "hours": hours,
             "virtual_time": virtual_now.isoformat(),
+            "offset_hours": new_offset,
         },
     )
 
@@ -77,13 +87,13 @@ def jump(hours: float) -> str:
 
 
 def reset_clock() -> str:
-    """Reset the demo virtual clock back to real IST time."""
+    """
+    Reset the demo virtual clock back to real IST time.
+    """
 
-    global _offset
+    set_clock_offset(0)
 
-    with _lock:
-        _offset = timedelta(0)
-        virtual_now = datetime.now(IST)
+    virtual_now = get_now()
 
     audit_log(
         "scheduler",
@@ -97,11 +107,16 @@ def reset_clock() -> str:
     return virtual_now.isoformat()
 
 
+# ============================================================
+# RUN DUE CASES
+# ============================================================
+
 def run_due(diagnose_fn) -> dict:
     """
     Wake eligible open cases and re-run diagnosis.
 
-    The scheduler only decides WHEN a case should be reconsidered.
+    The scheduler decides WHEN a case should be reconsidered.
+
     The injected diagnose_fn decides WHAT should happen.
 
     A case becomes eligible after 15 minutes from creation.
@@ -110,6 +125,10 @@ def run_due(diagnose_fn) -> dict:
     """
 
     results = []
+
+    # ========================================================
+    # LOAD OPEN CASES
+    # ========================================================
 
     with db() as conn:
         rows = conn.execute(
@@ -121,15 +140,28 @@ def run_due(diagnose_fn) -> dict:
             """
         ).fetchall()
 
-    now = _now()
+    # ========================================================
+    # SHARED VIRTUAL TIME
+    # ========================================================
+
+    now = get_now()
+
+    # ========================================================
+    # CHECK EACH CASE
+    # ========================================================
 
     for row in rows:
         try:
-            created_at = datetime.fromisoformat(row["created_at"])
+            created_at = datetime.fromisoformat(
+                row["created_at"]
+            )
 
-            # Handle old records stored without timezone information.
+            # Existing database records may not have timezone
+            # information. Treat them as IST.
             if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=IST)
+                created_at = created_at.replace(
+                    tzinfo=IST
+                )
 
         except (TypeError, ValueError):
             audit_log(
@@ -140,7 +172,12 @@ def run_due(diagnose_fn) -> dict:
                     "created_at": row["created_at"],
                 },
             )
+
             continue
+
+        # ====================================================
+        # CASE AGE
+        # ====================================================
 
         age = now - created_at
 
@@ -148,8 +185,14 @@ def run_due(diagnose_fn) -> dict:
         if age < timedelta(minutes=15):
             continue
 
+        # ====================================================
+        # RE-RUN DIAGNOSIS
+        # ====================================================
+
         try:
-            diagnosis_result = diagnose_fn(row["order_id"])
+            diagnosis_result = diagnose_fn(
+                row["order_id"]
+            )
 
             results.append(
                 {
@@ -179,6 +222,10 @@ def run_due(diagnose_fn) -> dict:
                 }
             )
 
+    # ========================================================
+    # AUDIT
+    # ========================================================
+
     audit_log(
         "scheduler",
         "run_due",
@@ -195,3 +242,4 @@ def run_due(diagnose_fn) -> dict:
         "rediagnosed": len(results),
         "results": results,
     }
+
