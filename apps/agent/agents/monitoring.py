@@ -85,14 +85,6 @@ def handle_failed_payment(ent: dict, orders_lookup) -> dict:
     If should_diagnose=True, main.py should wake Agent 2.
     """
 
-    # IMPORTANT:
-    # The previous version attempted:
-    #
-    #     from classification import classify_gateway_error
-    #
-    # But classification.py does not expose that function.
-    #
-    # The RecoverFlow design uses `classify(ent)` instead.
     from classification import classify
 
     order_id = ent.get("order_id") or "unknown"
@@ -100,10 +92,6 @@ def handle_failed_payment(ent: dict, orders_lookup) -> dict:
     # ========================================================
     # DEDUPE
     # ========================================================
-    #
-    # Razorpay can retry webhooks.
-    # One failed payment should create one recovery case.
-    #
 
     with db() as conn:
         existing = conn.execute(
@@ -135,24 +123,12 @@ def handle_failed_payment(ent: dict, orders_lookup) -> dict:
     # ========================================================
     # CLASSIFICATION
     # ========================================================
-    #
-    # classification.py is the vendor mapping layer.
-    #
-    # Expected return:
-    #
-    #     failure_type,
-    #     recommended_action,
-    #     detail
-    #
 
     try:
         ftype, recommended_action, detail = classify(ent)
 
     except Exception as exc:
-        # Monitoring should not silently crash the webhook
-        # because a classification rule failed.
-        #
-        # Record the problem and use a safe generic classification.
+
         audit_log(
             "monitoring",
             "classification.failed",
@@ -183,10 +159,6 @@ def handle_failed_payment(ent: dict, orders_lookup) -> dict:
         amount = order["amount"]
 
     else:
-        # Webhook belongs to an order that does not exist
-        # in our local orders table.
-        #
-        # Still file the case using Razorpay entity data.
 
         phone = ent.get("contact") or "unknown"
         plan = "unknown"
@@ -271,54 +243,139 @@ def handle_captured_payment(ent: dict) -> dict:
     """
     Handle Razorpay payment.captured.
 
-    If a customer previously had an open recovery case and
-    subsequently paid, mark the case as recovered.
+    IMPORTANT:
+    Razorpay's captured payment contains the RETRY order ID.
 
-    This prevents additional recovery actions after payment.
+    Example:
+
+        Original failed order:
+            order_ABC
+
+        Retry order:
+            order_XYZ
+
+    failed_payments stores:
+        order_ABC
+
+    executions stores:
+        case_id = order_ABC
+        order_id = order_XYZ
+
+    Therefore we use executions to connect the successful
+    retry payment back to the original failed case.
     """
 
-    order_id = ent.get("order_id") or "unknown"
+    # This is the order ID from Razorpay payment.captured.
+    payment_order_id = ent.get("order_id") or "unknown"
 
     # ========================================================
-    # FIND OPEN CASE
+    # FIND THE ORIGINAL RECOVERY CASE
     # ========================================================
 
     with db() as conn:
+
+        # ----------------------------------------------------
+        # FIRST:
+        # Check whether the captured order itself is an
+        # original failed order.
+        # ----------------------------------------------------
+
         row = conn.execute(
             """
-            SELECT id
+            SELECT id, order_id
             FROM failed_payments
             WHERE order_id=?
-              AND status='open'
+              AND status NOT IN ('recovered')
+            ORDER BY id DESC
+            LIMIT 1
             """,
-            (order_id,)
+            (payment_order_id,)
         ).fetchone()
 
+        case_id = payment_order_id
+
+        # ----------------------------------------------------
+        # SECOND:
+        # If it is not the original order, it is probably
+        # a retry order created by Agent 3.
+        #
+        # executions.order_id = retry Razorpay order
+        # executions.case_id  = original failed order
+        # ----------------------------------------------------
+
+        if not row:
+
+            execution = conn.execute(
+                """
+                SELECT case_id
+                FROM executions
+                WHERE order_id=?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (payment_order_id,)
+            ).fetchone()
+
+            if execution:
+
+                case_id = execution["case_id"]
+
+                # Find the original failed case.
+                row = conn.execute(
+                    """
+                    SELECT id, order_id
+                    FROM failed_payments
+                    WHERE order_id=?
+                      AND status NOT IN ('recovered')
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    (case_id,)
+                ).fetchone()
+
         # ====================================================
-        # CLOSE RECOVERY CASE
+        # MARK CASE AS RECOVERED
         # ====================================================
 
         if row:
+
             conn.execute(
                 """
                 UPDATE failed_payments
                 SET status='recovered'
                 WHERE order_id=?
-                  AND status='open'
+                  AND status NOT IN ('recovered')
                 """,
-                (order_id,)
+                (case_id,)
             )
+
+            # ------------------------------------------------
+            # Mark the retry execution as paid.
+            # ------------------------------------------------
+
+            conn.execute(
+                """
+                UPDATE executions
+                SET status='paid'
+                WHERE order_id=?
+                """,
+                (payment_order_id,)
+            )
+
+            conn.commit()
 
     # ========================================================
     # CASE RECOVERED
     # ========================================================
 
     if row:
+
         audit_log(
             "monitoring",
             "case.recovered",
-            order_id,
+            case_id,
             {
+                "payment_order_id": payment_order_id,
                 "note": (
                     "customer paid after recovery touch — "
                     "case closed"
@@ -329,25 +386,27 @@ def handle_captured_payment(ent: dict) -> dict:
         return {
             "handled": True,
             "recovered": True,
-            "case_id": order_id
+            "case_id": case_id,
+            "payment_order_id": payment_order_id
         }
 
     # ========================================================
-    # NO OPEN CASE
+    # NO MATCHING CASE
     # ========================================================
 
     audit_log(
         "monitoring",
         "payment.captured",
-        order_id,
+        payment_order_id,
         {
-            "source": "webhook"
+            "source": "webhook",
+            "note": "no matching recovery case found"
         }
     )
 
     return {
         "handled": True,
         "recovered": False,
-        "case_id": order_id
+        "case_id": payment_order_id,
+        "payment_order_id": payment_order_id
     }
-
