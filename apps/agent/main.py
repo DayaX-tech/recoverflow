@@ -30,7 +30,7 @@ from pydantic import BaseModel
 
 import policy
 import audit
-from core import db, audit_log, messaging_allowed_now, get_now
+from core import db, audit_log, messaging_allowed_now, get_now, build_wa_link
 from agents import monitoring, diagnosis, action, scheduler
 
 from fastapi.responses import FileResponse
@@ -892,19 +892,38 @@ def list_executions():
     with db() as conn:
         rows = conn.execute(
             """
-            SELECT *
-            FROM executions
-            ORDER BY id DESC
+            SELECT e.*, f.phone
+            FROM executions e
+            LEFT JOIN failed_payments f ON f.order_id = e.case_id
+            ORDER BY e.id DESC
             LIMIT 50
             """
         ).fetchall()
 
-    return [dict(r) for r in rows]
+    results = []
+    for r in rows:
+        d = dict(r)
+        if d.get("phone") and d.get("message"):
+            d["whatsapp_link"] = build_wa_link(d["phone"], d["message"])
+        else:
+            d["whatsapp_link"] = None
+        results.append(d)
+
+    return results
 
 
 # ============================================================
 # AGENT 4 — SCHEDULER + VIRTUAL CLOCK
 # ============================================================
+
+@app.get("/agent/clock")
+def get_clock():
+    now = get_now()
+    return {
+        "virtual_time": now.isoformat(),
+        "formatted": now.strftime("%d %b %Y, %I:%M %p IST").upper()
+    }
+
 
 @app.post("/agent/run-due")
 def run_due():
@@ -1049,8 +1068,20 @@ def order_meta(oid: str):
     with db() as conn:
         row = conn.execute("SELECT plan, amount FROM orders WHERE order_id=?", (oid,)).fetchone()
         if row:
+            audit_log("customer", "checkout.viewed", oid, {"plan": row["plan"], "amount": row["amount"]})
             return {"item_name": row["plan"], "amount": row["amount"]}
         return {"item_name": None, "amount": None}
+
+
+@app.get("/subscriptions")
+def list_subscriptions():
+    with db() as conn:
+        subs = conn.execute("SELECT * FROM subscriptions ORDER BY id DESC").fetchall()
+        renewals = conn.execute("SELECT * FROM subscription_renewals ORDER BY id DESC").fetchall()
+    return {
+        "subscriptions": [dict(s) for s in subs],
+        "renewals": [dict(r) for r in renewals],
+    }
 
 
 

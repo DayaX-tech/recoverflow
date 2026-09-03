@@ -210,6 +210,24 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
+.case-dropdown-select {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-xs);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  outline: none;
+  cursor: pointer;
+  max-width: 250px;
+}
+
+.case-dropdown-select:focus {
+  border-color: var(--primary-cyan);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+}
+
 /* Backend Connection & Telemetry Pill */
 .header-right-controls {
   display: flex;
@@ -537,6 +555,7 @@ body {
   gap: 4px;
   position: relative;
   z-index: 2;
+  cursor: pointer;
   transition: all var(--transition-fast);
 }
 
