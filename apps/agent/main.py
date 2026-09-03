@@ -30,7 +30,7 @@ from pydantic import BaseModel
 
 import policy
 import audit
-from core import db, audit_log, messaging_allowed_now
+from core import db, audit_log, messaging_allowed_now, get_now
 from agents import monitoring, diagnosis, action, scheduler
 
 from fastapi.responses import FileResponse
@@ -88,9 +88,41 @@ def init_db():
                 amount INTEGER,
                 status TEXT DEFAULT 'created',
                 payment_method TEXT DEFAULT 'razorpay',
+                purchase_type TEXT DEFAULT 'one_time',
+                created_at TEXT
+            )
+         """)
+      
+         
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subscription_id TEXT UNIQUE,
+                phone TEXT,
+                plan TEXT,
+                amount INTEGER,
+                status TEXT DEFAULT 'active',
+                started_at TEXT,
+                next_billing_at TEXT,
+                autopay_enabled INTEGER DEFAULT 1,
+                payment_method TEXT DEFAULT 'razorpay',
                 created_at TEXT
             )
         """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS subscription_renewals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subscription_id TEXT,
+                attempt_number INTEGER DEFAULT 1,
+                billing_at TEXT,
+                order_id TEXT,
+                status TEXT DEFAULT 'pending',
+                failure_type TEXT,
+                created_at TEXT
+            )
+        """)
+        
 
         # Backward compatibility for existing DBs
         cols = [
@@ -102,8 +134,9 @@ def init_db():
 
         if "payment_method" not in cols:
             conn.execute(
+               "" 
                 "ALTER TABLE orders "
-                "ADD COLUMN payment_method TEXT DEFAULT 'razorpay'"
+                "ADD COLUMN payment_method TEXT DEFAULT 'razorpay'"""
             )
 
         conn.execute("""
@@ -184,6 +217,7 @@ RECOVERY_SCOPE = {"razorpay"}
 class OrderRequest(BaseModel):
     plan: str
     phone: str
+    purchase_type: str = "one_time"
 
 
 @app.post("/create-order")
@@ -191,6 +225,14 @@ def create_order(req: OrderRequest):
 
     if req.plan not in PLANS:
         raise HTTPException(400, "unknown plan")
+    if req.purchase_type not in {
+        "one_time",
+        "subscription",
+    }:
+        raise HTTPException(
+            400,
+            "invalid purchase_type",
+        )
 
     p = PLANS[req.plan]
 
@@ -207,15 +249,16 @@ def create_order(req: OrderRequest):
         conn.execute(
             """
             INSERT INTO orders
-                (order_id, plan, phone, amount, created_at)
+                (order_id, plan, phone, amount, purchase_type, created_at)
             VALUES
-                (?,?,?,?,?)
+                (?,?,?,?,?,?)
             """,
             (
                 order["id"],
                 req.plan,
                 req.phone,
                 p["amount"],
+                req.purchase_type,
                 datetime.now().isoformat(),
             ),
         )
@@ -267,6 +310,49 @@ def verify_payment(payload: dict):
                 """,
                 (payload["razorpay_order_id"],),
             )
+            order = conn.execute(
+                """
+                SELECT plan, phone, amount,purchase_type
+                FROM orders
+                WHERE order_id=?
+                """,
+                (payload["razorpay_order_id"],),
+            ).fetchone()
+
+            if order and order["purchase_type"] == "subscription":
+                started_at = get_now()
+                next_billing_at = started_at + timedelta(days=30)
+
+                subscription_id = (
+                    f"sub_{payload['razorpay_order_id']}"
+                )
+
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO subscriptions (
+                        subscription_id,
+                        phone,
+                        plan,
+                        amount,
+                        status,
+                        started_at,
+                        next_billing_at,
+                        autopay_enabled,
+                        payment_method,
+                        created_at
+                    )
+                    VALUES (?, ?, ?, ?, 'active', ?, ?, 1, 'razorpay', ?)
+                    """,
+                    (
+                        subscription_id,
+                        order["phone"],
+                        order["plan"],
+                        order["amount"],
+                        started_at.isoformat(),
+                        next_billing_at.isoformat(),
+                        started_at.isoformat(),
+                    ),
+                )
 
         audit_log(
             "storefront",
@@ -277,7 +363,8 @@ def verify_payment(payload: dict):
 
         return {"verified": True}
 
-    except Exception:
+    except Exception as e:
+        print("VERIFY PAYMENT ERROR:", repr(e))
         return {"verified": False}
 
 

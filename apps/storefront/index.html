@@ -778,7 +778,7 @@
                 var res = await fetch(API + '/create-order', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ plan: plan, phone: customerPhone })
+                    body: JSON.stringify({ plan: plan, phone: customerPhone, purchase_type: "subscription" })
                 });
                 if (!res.ok) throw new Error('order failed: ' + res.status);
                 var data = await res.json();

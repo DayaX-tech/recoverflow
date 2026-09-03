@@ -27,6 +27,7 @@ from core import (
     get_now,
     set_clock_offset,
 )
+from agents import subscriptions
 
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -236,10 +237,35 @@ def run_due(diagnose_fn) -> dict:
             "virtual_time": now.isoformat(),
         },
     )
+        # ============================================================
+    # SUBSCRIPTION RENEWALS
+    # ============================================================
+
+    renewal_result = subscriptions.run_due_renewals()
+
+    # Send newly created renewal failures into Agent 2.
+    for renewal in renewal_result["results"]:
+        try:
+            diagnosis_result = diagnose_fn(
+                renewal["order_id"]
+            )
+
+            renewal["diagnosis"] = diagnosis_result
+
+        except Exception as exc:
+            audit_log(
+                "scheduler",
+                "subscription.diagnosis.failed",
+                renewal["order_id"],
+                {"error": str(exc)},
+            )
+
+            renewal["diagnosis_error"] = str(exc)
 
     return {
         "checked": len(rows),
         "rediagnosed": len(results),
+        "subscription_renewals": renewal_result,
         "results": results,
     }
 
