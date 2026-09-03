@@ -91,28 +91,25 @@ def run_due_renewals(
         if latest:
             latest = dict(latest)
 
-    # A failed attempt can only be retried
-    # once its scheduled retry time arrives.
-            if latest["status"] == "failed":
-                retry_due_at_value = latest.get("retry_due_at")
+            # Prevent another renewal if the latest attempt has not failed (e.g. paid).
+            if latest["status"] != "failed":
+                continue
 
-                if not retry_due_at_value:
-                    continue
+            # A failed attempt can only be retried once its scheduled retry time arrives.
+            retry_due_at_value = latest.get("retry_due_at")
+            if not retry_due_at_value:
+                continue
 
-                try:
-                    retry_due_at_check = datetime.fromisoformat(
-                    retry_due_at_value
-                )
-                except (TypeError, ValueError):
-                    continue
+            try:
+                retry_due_at_check = datetime.fromisoformat(retry_due_at_value)
+                if retry_due_at_check.tzinfo is None:
+                    from core import IST
+                    retry_due_at_check = retry_due_at_check.replace(tzinfo=IST)
+            except (TypeError, ValueError):
+                continue
 
-                if now < retry_due_at_check:
-                    continue
-
-    # Prevent another renewal if the latest attempt
-    # has not failed.
-        else:
-            continue
+            if now < retry_due_at_check:
+                continue
 
         # =====================================================
         # DETERMINE ATTEMPT NUMBER

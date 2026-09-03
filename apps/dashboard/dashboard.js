@@ -706,7 +706,6 @@
     try {
       const jumpRes = await fetch(`${BACKEND_URL}/agent/clock/jump?hours=${hours}`, { method: 'POST' });
       if (jumpRes.ok) {
-        await fetch(`${BACKEND_URL}/agent/run-due`, { method: 'POST' });
         await pollBackend();
         showToast('CLOCK JUMPED', `Virtual clock advanced +${hours}h. Scheduler evaluated due cases.`, 'success');
       }

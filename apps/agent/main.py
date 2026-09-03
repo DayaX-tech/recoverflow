@@ -596,13 +596,14 @@ def simulate_failure(req: SimulateFailureRequest):
         },
     )
 
-    # AGENT 2 wakes up
-    diagnosis.diagnose(case_id)
+    # AGENT 2 wakes up -> AGENT 3 handoff
+    orch_result = orchestrate_diagnosis(case_id)
 
     return {
         "case_id": case_id,
         "failure_type": req.failure_type,
-        "status": "open — awaiting agent",
+        "status": "diagnosed" if orch_result.get("diagnosed") else "open — awaiting agent",
+        "orchestration": orch_result,
     }
 
 
@@ -692,8 +693,8 @@ def report_abandonment(req: DismissReport):
         },
     )
 
-    # AGENT 2 also handles abandonment cases
-    diagnosis.diagnose(req.order_id)
+    # AGENT 2 also handles abandonment cases -> AGENT 3 handoff
+    orchestrate_diagnosis(req.order_id)
 
     return {
         "logged": True
@@ -804,9 +805,9 @@ async def razorpay_webhook(request: Request):
             orders_lookup,
         )
 
-        # AGENT 2
+        # AGENT 2 -> AGENT 3 ORCHESTRATION
         if result.get("should_diagnose"):
-            diagnosis.diagnose(
+            orchestrate_diagnosis(
                 result["case_id"]
             )
 
@@ -829,17 +830,152 @@ async def razorpay_webhook(request: Request):
 
 
 # ============================================================
-# AGENT 2 — DIAGNOSIS
+# AGENT 2 -> AGENT 3 ORCHESTRATION & HANDOFF
 # ============================================================
+
+IMMEDIATE_EXECUTION_STRATEGIES = {
+    "alt_method",
+    "nudge_now",
+    "reauth",
+    "customer_assisted",
+}
+
+
+def orchestrate_handoff_for_decision(case_id: str, decision: dict) -> dict:
+    """
+    Inspects an Agent 2 decision and, if immediately executable,
+    invokes Agent 3 with mandatory idempotency and audit trail.
+    """
+    status = decision.get("status")
+    strategy = decision.get("strategy")
+
+    # Immediate execution decisions
+    if status == "decided" and strategy in IMMEDIATE_EXECUTION_STRATEGIES:
+        # Idempotency check: verify whether an execution already exists for this case_id
+        with db() as conn:
+            existing_exec = conn.execute(
+                """
+                SELECT *
+                FROM executions
+                WHERE case_id=?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (case_id,),
+            ).fetchone()
+
+        if existing_exec:
+            ex = dict(existing_exec)
+            with db() as conn:
+                f_row = conn.execute(
+                    "SELECT phone, amount FROM failed_payments WHERE order_id=?",
+                    (case_id,),
+                ).fetchone()
+            phone = f_row["phone"] if f_row else ""
+            amt = f_row["amount"] if f_row else 0
+            wa_link = build_wa_link(phone, ex.get("message") or "")
+
+            return {
+                "executed": True,
+                "idempotent_reused": True,
+                "case_id": case_id,
+                "status": status,
+                "strategy": strategy,
+                "retry_order_id": ex.get("order_id"),
+                "amount": amt,
+                "payment_link": ex.get("link"),
+                "whatsapp_link": wa_link,
+                "note": "idempotent: reused existing execution",
+            }
+
+        # Invoke Agent 3
+        exec_res = action.execute_latest_decision(
+            case_id,
+            STORE_BASE,
+            client,
+        )
+
+        # Audit the automatic handoff
+        audit_log(
+            "orchestrator",
+            "agent2.agent3_handoff",
+            case_id,
+            {
+                "strategy": strategy,
+                "decision_status": status,
+                "retry_order_id": exec_res.get("retry_order_id"),
+                "executed": exec_res.get("executed", False),
+            },
+        )
+
+        return {
+            "case_id": case_id,
+            "status": status,
+            "strategy": strategy,
+            "executed": exec_res.get("executed", False),
+            "execution": exec_res,
+        }
+
+    # Queued / deferred / non-immediate decisions
+    return {
+        "case_id": case_id,
+        "status": status,
+        "strategy": strategy,
+        "executed": False,
+        "note": f"decision status '{status}' / strategy '{strategy}' deferred to scheduler/manual path",
+    }
+
+
+def orchestrate_diagnosis(case_id: str) -> dict:
+    """
+    Runs Agent 2 diagnosis for a case, then orchestrates handoff to Agent 3 if executable.
+    """
+    diag_res = diagnosis.diagnose(case_id)
+
+    with db() as conn:
+        decision_row = conn.execute(
+            """
+            SELECT *
+            FROM agent_decisions
+            WHERE case_id=?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (case_id,),
+        ).fetchone()
+
+    if not decision_row:
+        return diag_res or {"case_id": case_id, "processed": 0}
+
+    decision = dict(decision_row)
+    handoff_res = orchestrate_handoff_for_decision(case_id, decision)
+    return {
+        **(diag_res if isinstance(diag_res, dict) else {}),
+        **handoff_res,
+    }
+
+
+def orchestrate_all_open_diagnoses() -> dict:
+    diag_res = diagnosis.diagnose(None)
+    results = []
+    for dec in (diag_res.get("decisions", []) if isinstance(diag_res, dict) else []):
+        cid = dec.get("case_id")
+        if cid:
+            res = orchestrate_handoff_for_decision(cid, dec)
+            results.append(res)
+    return {
+        "processed": diag_res.get("processed", 0) if isinstance(diag_res, dict) else 0,
+        "results": results,
+    }
+
 
 @app.post("/agent/diagnose")
 def agent_diagnose_route(
     case_id: str = None,
 ):
-
-    return diagnosis.diagnose(
-        case_id
-    )
+    if case_id:
+        return orchestrate_diagnosis(case_id)
+    return orchestrate_all_open_diagnoses()
 
 
 # ============================================================
@@ -850,6 +986,40 @@ def agent_diagnose_route(
 def execute_decision(
     case_id: str,
 ):
+    # Enforce idempotency on direct invocation as well
+    with db() as conn:
+        existing_exec = conn.execute(
+            """
+            SELECT *
+            FROM executions
+            WHERE case_id=?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (case_id,),
+        ).fetchone()
+
+    if existing_exec:
+        ex = dict(existing_exec)
+        with db() as conn:
+            f_row = conn.execute(
+                "SELECT phone, amount FROM failed_payments WHERE order_id=?",
+                (case_id,),
+            ).fetchone()
+        phone = f_row["phone"] if f_row else ""
+        amt = f_row["amount"] if f_row else 0
+        wa_link = build_wa_link(phone, ex.get("message") or "")
+        return {
+            "executed": True,
+            "idempotent_reused": True,
+            "case_id": case_id,
+            "strategy": ex.get("strategy"),
+            "retry_order_id": ex.get("order_id"),
+            "amount": amt,
+            "payment_link": ex.get("link"),
+            "whatsapp_link": wa_link,
+            "note": "idempotent: reused existing execution",
+        }
 
     return action.execute_latest_decision(
         case_id,
@@ -938,7 +1108,7 @@ def run_due():
     """
 
     return scheduler.run_due(
-        diagnosis.diagnose
+        orchestrate_diagnosis
     )
 
 
@@ -958,22 +1128,31 @@ def clock_jump(hours: float = 1.0):
         },
     )
 
+    # Automatically invoke the existing scheduler to evaluate due work at the new virtual time
+    scheduler_result = scheduler.run_due(
+        orchestrate_diagnosis
+    )
+
     return {
         "virtual_time": new_time,
-        "note": (
-            "scheduler will now treat "
-            "queued cases as due"
-        ),
+        "scheduler": scheduler_result,
     }
 
 
 @app.post("/agent/clock/reset")
 def clock_reset():
 
-    scheduler.reset_clock()
+    new_time = scheduler.reset_clock()
+
+    # Automatically evaluate scheduler on clock reset
+    scheduler_result = scheduler.run_due(
+        orchestrate_diagnosis
+    )
 
     return {
-        "reset": True
+        "reset": True,
+        "virtual_time": new_time,
+        "scheduler": scheduler_result,
     }
 
 
