@@ -362,7 +362,45 @@ def handle_captured_payment(ent: dict) -> dict:
                 (payment_order_id,)
             )
 
-            conn.commit()
+                        # ------------------------------------------------
+            # SUBSCRIPTION RENEWAL RECONCILIATION
+            # ------------------------------------------------
+            renewal = conn.execute(
+                """
+                SELECT subscription_id
+                FROM subscription_renewals
+                WHERE order_id=?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (case_id,),
+            ).fetchone()
+
+            if renewal:
+                subscription_id = renewal["subscription_id"]
+
+                conn.execute(
+                    """
+                    UPDATE subscription_renewals
+                    SET status='paid',
+                        retry_due_at=NULL
+                    WHERE order_id=?
+                    """,
+                    (case_id,),
+                )
+
+                conn.execute(
+                    """
+                    UPDATE subscriptions
+                    SET next_billing_at =
+                        datetime(next_billing_at, '+30 days')
+                    WHERE subscription_id=?
+                    """,
+                    (subscription_id,),
+                )
+
+                
+                conn.commit()
 
     # ========================================================
     # CASE RECOVERED

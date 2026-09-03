@@ -137,11 +137,18 @@ def execute_latest_decision(
     # =========================================================
     # BUILD CUSTOMER MESSAGE
     # =========================================================
+    
+    message_type = (
+    "subscription_customer_assisted"
+    if decision["strategy"] == "customer_assisted"
+    else case["failure_type"]
+    )
+
     message = policy.build_message(
-        case["failure_type"],
-        amount // 100,
-        case["plan"] or "order",
-        link,
+    message_type,
+    amount // 100,
+    case["plan"] or "order",
+    link,
     )
 
     # =========================================================

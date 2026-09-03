@@ -70,6 +70,21 @@ def diagnose(case_id: str = None) -> dict:
     for row in rows:
         case = dict(row)
 
+                # CHECK IF THIS IS A SUBSCRIPTION RENEWAL
+        with db() as conn:
+            renewal = conn.execute(
+                """
+                SELECT *
+                FROM subscription_renewals
+                WHERE order_id=?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (case["order_id"],),
+            ).fetchone()
+
+        renewal = dict(renewal) if renewal else None
+
         taxonomy = policy.FAILURE_TAXONOMY.get(
             case["failure_type"],
             policy.FAILURE_TAXONOMY["unknown_failure"],
@@ -191,7 +206,11 @@ def diagnose(case_id: str = None) -> dict:
                         "failure_type": case["failure_type"],
                         "diagnosis_code": taxonomy["code"],
                         "in_scope": True,
-                        "strategy": taxonomy["strategy"],
+                        "strategy": (
+                            "customer_assisted"
+                                if renewal and int(renewal.get("attempt_number") or 1) >= 3
+                                 else taxonomy["strategy"]
+                                ),
                         "channel": "whatsapp",
                         "message": None,
                         "reasoning": (

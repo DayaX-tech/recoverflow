@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RecoverFlow — Payment Recovery Intelligence Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <!-- Ambient Space Grid -->
+  <div class="bg-grid"></div>
+
+  <div class="mission-control-container">
+
+    <!-- ====================================================================
+         1. COMPACT STICKY MISSION CONTROL HEADER (~74px)
+         ==================================================================== -->
+    <header class="mission-header">
+      <div class="header-brand">
+        <div class="brand-badge-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <div class="brand-title-line">
+            <span class="brand-title">RECOVERFLOW</span>
+            <span style="font-size:0.68rem;padding:2px 7px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.35);border-radius:var(--radius-pill);color:#a5b4fc;font-weight:700;">MISSION CONTROL</span>
+          </div>
+          <span class="brand-sub">Payment Recovery Intelligence · Live Control Plane</span>
+        </div>
+      </div>
+
+      <!-- Quick Case Switcher (One Platform · Dual Recovery Modes) -->
+      <div class="scenario-selector">
+        <button class="scenario-btn active" id="btnTabAutopay" title="View canonical Autopay recurring subscription recovery">
+          <span>🔁 Autopay Renewal Recovery (₹1,499)</span>
+        </button>
+        <button class="scenario-btn" id="btnTabOnetime" title="View one-time checkout decline recovery">
+          <span>💳 One-Time Payment Recovery (₹799)</span>
+        </button>
+      </div>
+
+      <!-- Live Heartbeat & Telemetry -->
+      <div class="header-right-controls">
+        <div class="connection-beacon" title="Automatic heartbeat polling to FastAPI backend (Port 8000)">
+          <span class="beacon-dot" id="beaconDot"></span>
+          <span id="beaconStatusText">SIMULATED ENGINE (Ready)</span>
+        </div>
+
+        <div style="display:flex;flex-direction:column;align-items:flex-end;">
+          <span style="font-size:0.6rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.6px;">SIMULATED CLOCK</span>
+          <span style="font-family:var(--font-mono);font-size:0.82rem;font-weight:700;color:var(--text-pure);" id="clockText">07 OCT 2026, 10:15 AM IST</span>
+        </div>
+
+        <div class="header-action-btns">
+          <button class="btn-ctrl btn-replay" id="btnReplay" title="Watch the live event travel through agents to recovery">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Replay Flow
+          </button>
+          <button class="btn-ctrl" id="btnTimeTravel" title="Advance clock +48h to evaluate due cooldowns">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Time Travel (+48h)
+          </button>
+          <button class="btn-ctrl" id="btnOpenDrawer" title="Open Case Investigation Drawer">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            Drawer
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ====================================================================
+         2. HERO MISSION PANEL: SPATIAL FLOW GRAPH & DYNAMIC AMOUNT
+         ==================================================================== -->
+    <section class="hero-mission-panel" id="heroMissionPanel">
+      <!-- Top Split: Human Narrative + Dynamic Amount -->
+      <div class="hero-top-grid">
+        <div class="case-headline-block">
+          <div class="case-tags-line">
+            <span class="tag-case-type" id="tagCaseType">AUTOPAY RENEWAL RECOVERY</span>
+            <span class="tag-case-id" id="tagCaseId">PulseFit Pro Membership · renewal_sub_order_TXPyb61yNoPOmX_3 · +91 79893 •••10</span>
+          </div>
+
+          <h1 class="case-human-title" id="caseHumanTitle">
+            PAYMENT FAILURE IDENTIFIED
+          </h1>
+
+          <p class="case-human-desc" id="caseHumanDesc">
+            Insufficient customer bank balance prevented scheduled recurring auto-debit on attempt 3 of 3.
+          </p>
+
+          <div class="case-policy-alert" id="casePolicyAlert">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <strong>AUTOMATION STOPPED — Configured 3-touch automatic limit reached. Transferred to Customer-Assisted Recovery.</strong>
+          </div>
+        </div>
+
+        <!-- Centerpiece Amount & Recovery Transformation Box -->
+        <div class="amount-recovery-box" id="amountRecoveryBox">
+          <div>
+            <div class="amount-label" id="amountLabel">AMOUNT AT RISK</div>
+            <div class="amount-display" id="amountDisplay">₹1,499</div>
+          </div>
+
+          <div>
+            <div class="status-badge-big pending" id="statusBadgeBig">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              PAYMENT PENDING
+            </div>
+
+            <div class="subscription-state-subline" id="subscriptionStateLine">
+              <div>SUBSCRIPTION: <span style="color:var(--primary-cyan);font-weight:700;">ACTIVE (Autopay Enabled)</span></div>
+              <div>NEXT BILLING: <span style="color:var(--accent-amber);font-weight:700;">02 NOV 2026</span> (Renewal Pending)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- The Spatial Flow Graph Canvas (8 Connected Nodes) -->
+      <div class="flow-graph-container">
+        <div class="flow-graph-header">
+          <span class="graph-title">RECOVERY MISSION CONTROL · LIVE SPATIAL GRAPH</span>
+          <span style="font-size:0.68rem;color:var(--accent-emerald);font-weight:700;font-family:var(--font-mono);">DETERMINISTIC · POLICY-GOVERNED</span>
+        </div>
+
+        <div class="graph-nodes-row" id="graphNodesRow">
+          <!-- Rendered dynamically by dashboard.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         3. MISSION STREAM: AGENT CONSOLE + LIVE AUDIT STREAM
+         ==================================================================== -->
+    <section class="mission-stream-grid">
+      <!-- Left: Multi-Agent Live Execution Console -->
+      <div class="agent-console-panel">
+        <div class="console-top-bar">
+          <div class="console-title-wrap">
+            <span style="font-size:0.68rem;padding:2px 7px;background:rgba(6,182,212,0.15);border:1px solid rgba(6,182,212,0.35);border-radius:var(--radius-pill);color:#67e8f9;font-weight:700;">LIVE PROTOCOL</span>
+            <h2 class="console-title">Multi-Agent Execution Console</h2>
+          </div>
+          <span style="font-size:0.7rem;font-family:var(--font-mono);color:var(--text-muted);">EVENT-DRIVEN HANDOFFS</span>
+        </div>
+
+        <div class="agent-timeline-feed" id="agentTimelineFeed">
+          <!-- Rendered dynamically by dashboard.js -->
+        </div>
+      </div>
+
+      <!-- Right: Customer Touchpoint & Live Audit Stream -->
+      <div class="customer-audit-column">
+        <!-- Customer WhatsApp Handoff -->
+        <div class="customer-touchpoint-card">
+          <div class="touchpoint-badge">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            CUSTOMER-ASSISTED RECOVERY LINK PREPARED
+          </div>
+
+          <p style="font-size:0.75rem;color:var(--text-secondary);">
+            Agent 3 prepared a secure recovery order and generated a WhatsApp recovery deep link with mandatory opt-out and grievance disclosures:
+          </p>
+
+          <div class="whatsapp-box-terminal" id="whatsappBoxTerminal">
+            <!-- Rendered by dashboard.js -->
+          </div>
+
+          <div class="deeplink-row">
+            <span>WhatsApp recovery deep link generated:</span>
+            <span class="deeplink-code" id="deepLinkCode"></span>
+          </div>
+        </div>
+
+        <!-- Live Audit Ledger Terminal -->
+        <div class="audit-terminal-card">
+          <div class="audit-terminal-header">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:0.68rem;padding:2px 6px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-pill);color:var(--accent-emerald);font-weight:700;">APPEND-ONLY</span>
+              <span style="font-size:0.86rem;font-weight:700;color:var(--text-pure);">Live Audit Ledger Stream</span>
+            </div>
+            <span style="font-size:0.68rem;font-family:var(--font-mono);color:var(--text-muted);">SHA-256 CHAINED</span>
+          </div>
+
+          <div class="audit-stream-list" id="auditStreamList">
+            <!-- Rendered by dashboard.js -->
+          </div>
+
+          <button class="btn-verify-audit-action" id="btnVerifyAudit">
+            Run Audit Chain Verification (SHA-256)
+          </button>
+
+          <div id="auditResultBox" style="display:none;margin-top:8px;font-size:0.72rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:var(--radius-xs);padding:6px 10px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         4. COMPACT EXECUTIVE METRICS STRIP (BOTTOM OF PAGE)
+         ==================================================================== -->
+    <section class="metrics-strip">
+      <div class="strip-item-card">
+        <span class="strip-label">Failed Volume Ingested</span>
+        <span class="strip-val">43</span>
+        <span class="strip-desc">Total failure events</span>
+      </div>
+
+      <div class="strip-item-card">
+        <span class="strip-label">Recovered Payments</span>
+        <span class="strip-val" style="color:var(--accent-emerald);">29</span>
+        <span class="strip-desc">Settled &amp; reconciled</span>
+      </div>
+
+      <div class="strip-item-card">
+        <span class="strip-label">Active In Pipeline</span>
+        <span class="strip-val" style="color:var(--accent-amber);">3</span>
+        <span class="strip-desc">Under agent management</span>
+      </div>
+
+      <div class="strip-item-card">
+        <span class="strip-label">Net Recovery Rate</span>
+        <span class="strip-val" style="color:var(--primary-cyan);">67.4%</span>
+        <span class="strip-desc">+45.4% uplift vs naive retries</span>
+      </div>
+
+      <div class="strip-item-card">
+        <span class="strip-label">Preserved Revenue</span>
+        <span class="strip-val" style="color:var(--primary-indigo);">₹43,471</span>
+        <span class="strip-desc">Direct Razorpay inflow</span>
+      </div>
+    </section>
+
+  </div><!-- /mission-control-container -->
+
+  <!-- ====================================================================
+       CASE INVESTIGATION DRAWER
+       ==================================================================== -->
+  <div class="drawer-backdrop" id="drawerBackdrop">
+    <div class="investigation-drawer">
+      <div class="drawer-head">
+        <span style="font-weight:800;font-size:1rem;color:var(--text-pure);">Case Investigation Console</span>
+        <button class="drawer-close" id="drawerCloseBtn">✕</button>
+      </div>
+
+      <div class="drawer-scroll">
+        <div class="drawer-card">
+          <div class="drawer-card-title">Case Metadata</div>
+          <div class="drawer-kv">
+            <div class="drawer-kv-item"><span class="drawer-k">Case ID</span><span class="drawer-v" id="drwCaseId"></span></div>
+            <div class="drawer-kv-item"><span class="drawer-k">Order ID</span><span class="drawer-v" id="drwOrderId"></span></div>
+            <div class="drawer-kv-item"><span class="drawer-k">Amount</span><span class="drawer-v" id="drwAmount" style="color:var(--accent-emerald);"></span></div>
+            <div class="drawer-kv-item"><span class="drawer-k">Plan</span><span class="drawer-v" id="drwPlan"></span></div>
+            <div class="drawer-kv-item"><span class="drawer-k">Phone</span><span class="drawer-v" id="drwPhone"></span></div>
+            <div class="drawer-kv-item"><span class="drawer-k">Status</span><span class="drawer-v" id="drwStatus" style="color:var(--accent-amber);"></span></div>
+          </div>
+        </div>
+
+        <div class="drawer-card">
+          <div class="drawer-card-title">Diagnostic &amp; Policy Details</div>
+          <div class="drawer-kv">
+            <div class="drawer-kv-item"><span class="drawer-k">Failure Type</span><span class="drawer-v" id="drwFailure"></span></div>
+            <div class="drawer-kv-item"><span class="drawer-k">Recovery Strategy</span><span class="drawer-v" id="drwStrategy"></span></div>
+          </div>
+        </div>
+
+        <div class="drawer-card">
+          <div class="drawer-card-title">Customer Touchpoint &amp; Deep Link</div>
+          <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--primary-cyan);margin-bottom:6px;word-break:break-all;" id="drwLink"></div>
+          <div style="background:var(--bg-terminal);padding:8px;font-size:0.72rem;white-space:pre-wrap;color:#cbd5e1;border-radius:var(--radius-xs);" id="drwMessage"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

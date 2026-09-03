@@ -195,6 +195,13 @@ MESSAGES = {
         "technical hiccup — no money is lost. We'll retry shortly, "
         "or pay now: {link}",
 
+    "subscription_customer_assisted":
+        "Hello! Your PulseFit {plan} membership renewal (₹{amount}) "
+        "could not be completed automatically. Automatic renewal attempts "
+        "have now ended, and your renewal is currently pending. "
+        "You can securely complete your renewal here: {link}. "
+        "If you have already completed the payment, please disregard this message.",
+
     "unknown_failure":
         None,   # never messaged — escalated to human/LLM triage
 }
