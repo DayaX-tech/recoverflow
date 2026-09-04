@@ -775,10 +775,11 @@
             toast('⏳ Creating secure checkout…');
 
             try {
+                var purchaseType = (plan === 'membership') ? 'subscription' : 'one_time';
                 var res = await fetch(API + '/create-order', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ plan: plan, phone: customerPhone, purchase_type: "subscription" })
+                    body: JSON.stringify({ plan: plan, phone: customerPhone, purchase_type: purchaseType })
                 });
                 if (!res.ok) throw new Error('order failed: ' + res.status);
                 var data = await res.json();

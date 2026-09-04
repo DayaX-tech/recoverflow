@@ -75,18 +75,25 @@ def run_due_renewals(
         # =====================================================
 
         billing_at = subscription["next_billing_at"]
+        try:
+            billing_at_dt = datetime.fromisoformat(billing_at)
+            if billing_at_dt.tzinfo is None:
+                from core import IST
+                billing_at_dt = billing_at_dt.replace(tzinfo=IST)
+        except (TypeError, ValueError):
+            billing_at_dt = None
 
         with db() as conn:
             latest = conn.execute(
-        """
-        SELECT *
-        FROM subscription_renewals
-        WHERE subscription_id=?
-        ORDER BY attempt_number DESC
-        LIMIT 1
-        """,
-        (subscription_id,),
-    ).fetchone()
+                """
+                SELECT *
+                FROM subscription_renewals
+                WHERE subscription_id=? AND billing_at=?
+                ORDER BY attempt_number DESC
+                LIMIT 1
+                """,
+                (subscription_id, billing_at),
+            ).fetchone()
 
         if latest:
             latest = dict(latest)
@@ -110,6 +117,11 @@ def run_due_renewals(
 
             if now < retry_due_at_check:
                 continue
+        else:
+            # If no renewal attempt exists yet for this billing cycle,
+            # verify that the virtual clock has actually reached the billing date.
+            if billing_at_dt and now < billing_at_dt:
+                continue
 
         # =====================================================
         # DETERMINE ATTEMPT NUMBER
@@ -120,13 +132,13 @@ def run_due_renewals(
                 """
                 SELECT COALESCE(MAX(attempt_number), 0) AS last_attempt
                 FROM subscription_renewals
-                WHERE subscription_id=?
+                WHERE subscription_id=? AND billing_at=?
                 """,
-                (subscription_id,),
+                (subscription_id, billing_at),
             ).fetchone()
 
         attempt_number = int(row["last_attempt"] or 0) + 1
-                # =====================================================
+        # =====================================================
         # AUTOMATIC RETRY LIMIT
         # =====================================================
 
@@ -143,7 +155,7 @@ def run_due_renewals(
 
             continue
 
-                # =====================================================
+        # =====================================================
         # RETRY SCHEDULE
         # =====================================================
 
@@ -153,9 +165,25 @@ def run_due_renewals(
         # DEMO RENEWAL ORDER ID
         # =====================================================
 
-        renewal_order_id = (
-            f"renewal_{subscription_id}_{attempt_number}"
-        )
+        with db() as conn:
+            cycle_row = conn.execute(
+                """
+                SELECT COUNT(DISTINCT billing_at) AS prev_cycles
+                FROM subscription_renewals
+                WHERE subscription_id=? AND billing_at != ?
+                """,
+                (subscription_id, billing_at),
+            ).fetchone()
+        cycle_num = int(cycle_row["prev_cycles"] or 0) + 1
+
+        if cycle_num > 1:
+            renewal_order_id = (
+                f"renewal_{subscription_id}_c{cycle_num}_{attempt_number}"
+            )
+        else:
+            renewal_order_id = (
+                f"renewal_{subscription_id}_{attempt_number}"
+            )
 
         # =====================================================
         # FILE RENEWAL ATTEMPT

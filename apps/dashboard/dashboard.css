@@ -536,6 +536,21 @@ body {
   animation: beam-travel 1.8s linear infinite;
 }
 
+.graph-connector.bypassed {
+  background: transparent;
+  border-top: 2px dashed rgba(148, 163, 184, 0.25);
+  height: 0;
+}
+
+.graph-connector.bypassed::after {
+  display: none;
+}
+
+.graph-connector.direct-flow {
+  background: rgba(6, 182, 212, 0.6);
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.4);
+}
+
 @keyframes beam-travel {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
@@ -568,6 +583,30 @@ body {
 .graph-node.idle {
   opacity: 0.6;
   border-color: var(--border-subtle);
+}
+
+.graph-node.bypassed {
+  opacity: 0.55;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.graph-node.bypassed:hover {
+  opacity: 0.9;
+  border-color: var(--primary-cyan);
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.graph-node.bypassed .node-icon-circle {
+  background: rgba(148, 163, 184, 0.08);
+  color: #64748b;
+  border: 1px dashed #475569;
+}
+
+.graph-node.bypassed .node-badge-tag {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px dashed rgba(148, 163, 184, 0.3);
 }
 
 .graph-node.processing {
@@ -706,6 +745,17 @@ body {
   border-color: var(--primary-cyan);
   background: rgba(6, 182, 212, 0.06);
   box-shadow: 0 0 14px rgba(6, 182, 212, 0.2);
+}
+
+.agent-event-card.bypassed {
+  opacity: 0.65;
+  border: 1px dashed rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.agent-event-card.bypassed:hover {
+  opacity: 0.95;
+  border-color: rgba(148, 163, 184, 0.5);
 }
 
 .agent-role-pill {

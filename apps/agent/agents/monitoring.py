@@ -21,7 +21,7 @@ All strategy lives in AGENT 2 + policy.py.
 import hmac
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from core import db, audit_log
 
@@ -267,6 +267,7 @@ def handle_captured_payment(ent: dict) -> dict:
 
     # This is the order ID from Razorpay payment.captured.
     payment_order_id = ent.get("order_id") or "unknown"
+    activated_sub = None
 
     # ========================================================
     # FIND THE ORIGINAL RECOVERY CASE
@@ -362,7 +363,81 @@ def handle_captured_payment(ent: dict) -> dict:
                 (payment_order_id,)
             )
 
-                        # ------------------------------------------------
+            # ------------------------------------------------
+            # INITIAL PURCHASE ORDER RECONCILIATION
+            # ------------------------------------------------
+            orig_order = conn.execute(
+                """
+                SELECT *
+                FROM orders
+                WHERE order_id=?
+                """,
+                (case_id,),
+            ).fetchone()
+
+            if orig_order:
+                orig_order = dict(orig_order)
+                conn.execute(
+                    "UPDATE orders SET status='paid' WHERE order_id=?",
+                    (case_id,),
+                )
+
+                if orig_order.get("purchase_type") == "subscription":
+                    from core import get_now
+                    started_at = get_now()
+                    next_billing_at = started_at + timedelta(days=30)
+                    subscription_id = f"sub_{case_id}"
+
+                    existing_sub = conn.execute(
+                        "SELECT * FROM subscriptions WHERE subscription_id=?",
+                        (subscription_id,),
+                    ).fetchone()
+
+                    if not existing_sub:
+                        conn.execute(
+                            """
+                            INSERT INTO subscriptions (
+                                subscription_id,
+                                phone,
+                                plan,
+                                amount,
+                                status,
+                                started_at,
+                                next_billing_at,
+                                autopay_enabled,
+                                payment_method,
+                                created_at
+                            )
+                            VALUES (?, ?, ?, ?, 'active', ?, ?, 1, 'razorpay', ?)
+                            """,
+                            (
+                                subscription_id,
+                                orig_order["phone"],
+                                orig_order["plan"],
+                                orig_order["amount"],
+                                started_at.isoformat(),
+                                next_billing_at.isoformat(),
+                                started_at.isoformat(),
+                            ),
+                        )
+                        activated_sub = {
+                            "id": subscription_id,
+                            "order_id": case_id,
+                            "next_billing_at": next_billing_at.isoformat(),
+                        }
+                    else:
+                        conn.execute(
+                            """
+                            UPDATE subscriptions
+                            SET status='active',
+                                autopay_enabled=1,
+                                payment_method='razorpay'
+                            WHERE subscription_id=?
+                            """,
+                            (subscription_id,),
+                        )
+
+            # ------------------------------------------------
             # SUBSCRIPTION RENEWAL RECONCILIATION
             # ------------------------------------------------
             renewal = conn.execute(
@@ -389,18 +464,46 @@ def handle_captured_payment(ent: dict) -> dict:
                     (case_id,),
                 )
 
+                sub_row = conn.execute(
+                    "SELECT next_billing_at FROM subscriptions WHERE subscription_id=?",
+                    (subscription_id,),
+                ).fetchone()
+
+                new_next_billing = None
+                if sub_row and sub_row["next_billing_at"]:
+                    try:
+                        from core import IST
+                        cur_billing = datetime.fromisoformat(sub_row["next_billing_at"])
+                        if cur_billing.tzinfo is None:
+                            cur_billing = cur_billing.replace(tzinfo=IST)
+                        new_next_billing = (cur_billing + timedelta(days=30)).isoformat()
+                    except Exception:
+                        pass
+
+                if not new_next_billing:
+                    from core import get_now
+                    new_next_billing = (get_now() + timedelta(days=30)).isoformat()
+
                 conn.execute(
                     """
                     UPDATE subscriptions
-                    SET next_billing_at =
-                        datetime(next_billing_at, '+30 days')
+                    SET next_billing_at=?
                     WHERE subscription_id=?
                     """,
-                    (subscription_id,),
+                    (new_next_billing, subscription_id),
                 )
 
-                
-                conn.commit()
+    if activated_sub:
+        audit_log(
+            "subscription",
+            "subscription.activated",
+            activated_sub["id"],
+            {
+                "source": "monitoring_webhook",
+                "order_id": activated_sub["order_id"],
+                "next_billing_at": activated_sub["next_billing_at"],
+            },
+        )
 
     # ========================================================
     # CASE RECOVERED

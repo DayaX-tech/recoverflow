@@ -196,13 +196,16 @@ audit.init_audit()
 
 PLANS = {
     "shaker": {
-        "amount": 79900
+        "amount": 79900,
+        "purchase_type": "one_time",
     },
     "membership": {
-        "amount": 149900
+        "amount": 149900,
+        "purchase_type": "subscription",
     },
     "elite": {
-        "amount": 1499900
+        "amount": 1499900,
+        "purchase_type": "one_time",
     },
 }
 
@@ -225,16 +228,9 @@ def create_order(req: OrderRequest):
 
     if req.plan not in PLANS:
         raise HTTPException(400, "unknown plan")
-    if req.purchase_type not in {
-        "one_time",
-        "subscription",
-    }:
-        raise HTTPException(
-            400,
-            "invalid purchase_type",
-        )
 
     p = PLANS[req.plan]
+    purchase_type = p.get("purchase_type", req.purchase_type)
 
     order = client.order.create({
         "amount": p["amount"],
@@ -258,7 +254,7 @@ def create_order(req: OrderRequest):
                 req.plan,
                 req.phone,
                 p["amount"],
-                req.purchase_type,
+                purchase_type,
                 datetime.now().isoformat(),
             ),
         )
@@ -301,58 +297,126 @@ def verify_payment(payload: dict):
         ):
             return {"verified": False}
 
+        activated_sub = None
         with db() as conn:
-            conn.execute(
-                """
-                UPDATE orders
-                SET status='paid'
-                WHERE order_id=?
-                """,
-                (payload["razorpay_order_id"],),
-            )
+            rzp_order_id = payload["razorpay_order_id"]
+
+            # 1. Resolve original order: could be direct order_id or via executions
             order = conn.execute(
                 """
-                SELECT plan, phone, amount,purchase_type
+                SELECT *
                 FROM orders
                 WHERE order_id=?
                 """,
-                (payload["razorpay_order_id"],),
+                (rzp_order_id,),
             ).fetchone()
 
-            if order and order["purchase_type"] == "subscription":
-                started_at = get_now()
-                next_billing_at = started_at + timedelta(days=30)
+            case_id = rzp_order_id
+            if not order:
+                execution = conn.execute(
+                    """
+                    SELECT case_id
+                    FROM executions
+                    WHERE order_id=?
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    (rzp_order_id,),
+                ).fetchone()
 
-                subscription_id = (
-                    f"sub_{payload['razorpay_order_id']}"
-                )
+                if execution:
+                    case_id = execution["case_id"]
+                    order = conn.execute(
+                        """
+                        SELECT *
+                        FROM orders
+                        WHERE order_id=?
+                        """,
+                        (case_id,),
+                    ).fetchone()
+
+            if order:
+                order = dict(order)
+                orig_order_id = order["order_id"]
 
                 conn.execute(
-                    """
-                    INSERT OR IGNORE INTO subscriptions (
-                        subscription_id,
-                        phone,
-                        plan,
-                        amount,
-                        status,
-                        started_at,
-                        next_billing_at,
-                        autopay_enabled,
-                        payment_method,
-                        created_at
-                    )
-                    VALUES (?, ?, ?, ?, 'active', ?, ?, 1, 'razorpay', ?)
-                    """,
-                    (
-                        subscription_id,
-                        order["phone"],
-                        order["plan"],
-                        order["amount"],
-                        started_at.isoformat(),
-                        next_billing_at.isoformat(),
-                        started_at.isoformat(),
-                    ),
+                    "UPDATE orders SET status='paid' WHERE order_id=?",
+                    (orig_order_id,),
                 )
+                conn.execute(
+                    "UPDATE executions SET status='paid' WHERE order_id=?",
+                    (rzp_order_id,),
+                )
+                conn.execute(
+                    "UPDATE failed_payments SET status='recovered' WHERE order_id=?",
+                    (case_id,),
+                )
+
+                if order.get("purchase_type") == "subscription":
+                    started_at = get_now()
+                    next_billing_at = started_at + timedelta(days=30)
+                    subscription_id = f"sub_{orig_order_id}"
+
+                    existing_sub = conn.execute(
+                        "SELECT * FROM subscriptions WHERE subscription_id=?",
+                        (subscription_id,),
+                    ).fetchone()
+
+                    if not existing_sub:
+                        conn.execute(
+                            """
+                            INSERT INTO subscriptions (
+                                subscription_id,
+                                phone,
+                                plan,
+                                amount,
+                                status,
+                                started_at,
+                                next_billing_at,
+                                autopay_enabled,
+                                payment_method,
+                                created_at
+                            )
+                            VALUES (?, ?, ?, ?, 'active', ?, ?, 1, 'razorpay', ?)
+                            """,
+                            (
+                                subscription_id,
+                                order["phone"],
+                                order["plan"],
+                                order["amount"],
+                                started_at.isoformat(),
+                                next_billing_at.isoformat(),
+                                started_at.isoformat(),
+                            ),
+                        )
+                        activated_sub = {
+                            "id": subscription_id,
+                            "order_id": orig_order_id,
+                            "next_billing_at": next_billing_at.isoformat(),
+                        }
+                    else:
+                        conn.execute(
+                            """
+                            UPDATE subscriptions
+                            SET status='active',
+                                autopay_enabled=1,
+                                payment_method='razorpay'
+                            WHERE subscription_id=?
+                            """,
+                            (subscription_id,),
+                        )
+
+        if activated_sub:
+            audit_log(
+                "subscription",
+                "subscription.activated",
+                activated_sub["id"],
+                {
+                    "source": "verify_payment",
+                    "order_id": activated_sub["order_id"],
+                    "next_billing_at": activated_sub["next_billing_at"],
+                },
+            )
 
         audit_log(
             "storefront",
@@ -707,14 +771,27 @@ def list_failures():
     with db() as conn:
         rows = conn.execute(
             """
-            SELECT *
-            FROM failed_payments
-            ORDER BY id DESC
+            SELECT f.*, o.purchase_type
+            FROM failed_payments f
+            LEFT JOIN orders o ON f.order_id = o.order_id
+            ORDER BY f.id DESC
             LIMIT 100
             """
         ).fetchall()
 
-    return [dict(r) for r in rows]
+    failures = []
+    for r in rows:
+        d = dict(r)
+        if not d.get("purchase_type"):
+            if d.get("failure_source") == "subscription_renewal":
+                d["purchase_type"] = "subscription"
+            elif d.get("plan") in PLANS:
+                d["purchase_type"] = PLANS[d["plan"]].get("purchase_type", "one_time")
+            else:
+                d["purchase_type"] = "one_time"
+        failures.append(d)
+
+    return failures
 
 
 # ============================================================

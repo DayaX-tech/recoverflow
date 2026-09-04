@@ -30,7 +30,8 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 def db():
     """Return a SQLite connection using the shared database."""
-    conn = sqlite3.connect(DB)
+    conn = sqlite3.connect(DB, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
     conn.row_factory = sqlite3.Row
     return conn
 

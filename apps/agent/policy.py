@@ -196,7 +196,7 @@ MESSAGES = {
         "or pay now: {link}",
 
     "subscription_customer_assisted":
-        "Hello! Your PulseFit {plan} membership renewal (₹{amount}) "
+        "Hello! Your PulseFit {plan} renewal (₹{amount}) "
         "could not be completed automatically. Automatic renewal attempts "
         "have now ended, and your renewal is currently pending. "
         "You can securely complete your renewal here: {link}. "
@@ -224,7 +224,8 @@ def build_message(failure_type: str, amount_rupees: int, plan: str,
     template = MESSAGES.get(failure_type)
     if template is None:
         return None
-    body = template.format(amount=amount_rupees, plan=plan, link=link)
+    plan_display = plan.replace("_", " ").title() if plan else "Plan"
+    body = template.format(amount=amount_rupees, plan=plan_display, link=link)
     suffix = MESSAGE_SUFFIX.format(grievance=GUARDRAILS["grievance_contact"])
     return body + suffix
 

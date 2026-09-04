@@ -36,6 +36,8 @@ REASON_MAP = {
     "card_type_not_supported":    ("declined_card",      "alt_instrument"),
     "issuer_not_available":       ("declined_card",      "contact_bank_or_alt"),
     "international_not_allowed":  ("declined_card",      "alt_instrument"),
+    "international_transaction_not_allowed": ("declined_card", "alt_instrument"),
+    "payment_failed":             ("declined_card",      "contact_bank_or_alt"),
 
     # ── gateway/bank-caused — transient, auto-retry eligible ────
     "gateway_technical_error":    ("gateway_issue",      "auto_retry_later"),
@@ -65,6 +67,7 @@ def classify(ent: dict) -> tuple[str, str, str]:
     source = (ent.get("error_source") or "?").strip()
     code   = (ent.get("error_code") or "?").strip()
     desc   = (ent.get("error_description") or "").strip()
+    method = (ent.get("method") or "").strip().lower()
 
     detail = f"{desc} [{source}/{reason or code}]"
 
@@ -73,13 +76,16 @@ def classify(ent: dict) -> tuple[str, str, str]:
         ftype, action = REASON_MAP[reason]
         return ftype, action, detail
 
-    # 2) fallback: reason empty/unmapped — scan description text
-    #    (learned from live webhook: international-card rejection
-    #    arrives with empty error_reason, text only in description)
+    # 2) fallback: reason empty/unmapped — scan description text & method
     d = desc.lower()
+    if method == "card" or source in ("issuer", "customer") or "card" in d:
+        if any(k in d for k in ("declined", "refunded", "temporary", "not through", "failed", "reject")):
+            return "declined_card", "contact_bank_or_alt", detail
+
     if any(k in d for k in ("domestic", "international",
                             "another payment method",
-                            "not supported", "not enabled")):
+                            "not supported", "not enabled",
+                            "declined")):
         return "declined_card", "alt_instrument", detail
     if any(k in d for k in ("insufficient", "balance")):
         return "insufficient_funds", "retry_later", detail
