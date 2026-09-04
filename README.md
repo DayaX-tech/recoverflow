@@ -6,13 +6,11 @@
 
 **Razorpay AI Buildathon 2026 · Track 03 — AI Revenue Recovery**
 
-[![Razorpay](https://img.shields.io/badge/Razorpay-Test%20Mode-blue?logo=razorpay)](https://razorpay.com/)
-[![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Database](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite)](https://sqlite.org/)
-[![Track](https://img.shields.io/badge/Buildathon-AI%20Revenue%20Recovery-8A2BE2)](https://razorpay.com/)
-[![Status](https://img.shields.io/badge/Status-Demo%20Ready-brightgreen)]()
-
-**[▶ Live Demo](#-demo-flow)** · **[🏗 Architecture](#-system-architecture)** · **[🎥 5-Min Pitch](#-buildathon-pitch)**
+![Razorpay Test Mode](https://img.shields.io/badge/Razorpay-Test%20Mode-blue?logo=razorpay)
+![Backend FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi)
+![Database SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite)
+![Buildathon](https://img.shields.io/badge/Buildathon-AI%20Revenue%20Recovery-8A2BE2)
+![Status](https://img.shields.io/badge/Status-Demo%20Ready-brightgreen)
 
 </div>
 
@@ -21,7 +19,7 @@
 > **Payment failure is not revenue loss.**
 > **The real problem is deciding what should happen next.**
 
-RecoverFlow is a payment-recovery control plane that turns failed Razorpay payments into bounded, explainable recovery actions — and *proves* whether the money actually came back.
+RecoverFlow is a payment-recovery control plane that turns failed Razorpay payments into bounded, explainable recovery actions — and _proves_ whether the money actually came back.
 
 <!-- 📸 HERO SCREENSHOT — place your main Mission Control dashboard image here.
      Save the file at: assets/screenshots/mission-control-hero.png
@@ -257,6 +255,7 @@ The dashboard is connected to the live FastAPI backend and SQLite database — r
 ## 🤖 Agent Architecture
 
 ### Agent 1 — Monitoring
+
 **Purpose:** Understand what happened.
 
 - Razorpay webhook events
@@ -269,9 +268,11 @@ The dashboard is connected to the live FastAPI backend and SQLite database — r
 Agent 1 establishes the canonical recovery case and later maps successful retry payments back to the original failure.
 
 ### Agent 2 — Diagnosis & Policy
+
 **Purpose:** Decide what should happen next.
 
 Evaluates:
+
 - Recovery jurisdiction / scope
 - Failure taxonomy
 - Retry / touch limits
@@ -284,6 +285,7 @@ Unsupported or ambiguous cases are **escalated**, never forced into an unsafe ac
 > **Design choice:** the financial policy layer is intentionally deterministic and auditable. No unrestricted model has authority over money movement.
 
 ### Agent 3 — Action
+
 **Purpose:** Execute an approved strategy.
 
 - Creates Razorpay retry orders
@@ -295,7 +297,8 @@ Unsupported or ambiguous cases are **escalated**, never forced into an unsafe ac
 Agent 3 executes an already-approved strategy — it does not invent one.
 
 ### Agent 4 — Scheduler
-**Purpose:** Control *when* time-based recovery is allowed.
+
+**Purpose:** Control _when_ time-based recovery is allowed.
 
 - Retry cooldowns
 - Scheduled retries
@@ -308,7 +311,8 @@ Prevents the system from repeatedly attempting a failing payment outside of poli
 ---
 
 ## 🔄 Workflow 1 — ₹799 One-Time Recovery
-*PulseFit Shaker Bottle*
+
+_PulseFit Shaker Bottle_
 
 ```text
 Customer → ₹799 Razorpay Checkout → Payment Failure
@@ -328,7 +332,8 @@ Customer → ₹799 Razorpay Checkout → Payment Failure
 ---
 
 ## 🔄 Workflow 2 — ₹14,999 Annual One-Time Recovery
-*PulseFit Elite Annual Pass*
+
+_PulseFit Elite Annual Pass_
 
 ```text
 ₹14,999 Checkout → Payment Failure → Diagnosis → Recovery Strategy
@@ -343,7 +348,8 @@ This proves recovery preserves the semantics of the original purchase.
 ---
 
 ## 🔄 Workflow 3 — ₹1,499 Subscription Initial Checkout
-*PulseFit Pro Membership*
+
+_PulseFit Pro Membership_
 
 ```text
 ₹1,499 Initial Checkout → Payment Failure → Recovery Decision
@@ -356,7 +362,8 @@ This proves recovery preserves the semantics of the original purchase.
 ---
 
 ## 🔁 Workflow 4 — Subscription Renewal Recovery
-*The most important lifecycle in the demo*
+
+_The most important lifecycle in the demo_
 
 ```text
 Renewal Attempt #1 → ❌ Failure → Agent 2: RETRY_LATER → Agent 4: 48H COOLDOWN
@@ -417,7 +424,7 @@ Retry limit reached → Do NOT retry forever → Customer-assisted recovery
 
 ## 🔐 Audit Trail
 
-A financial recovery system must explain not only *what* happened, but *why*. RecoverFlow records meaningful state transitions through a **hash-chained audit ledger**.
+A financial recovery system must explain not only _what_ happened, but _why_. RecoverFlow records meaningful state transitions through a **hash-chained audit ledger**.
 
 ```text
 Razorpay Webhook → Failure Classified → Diagnosis Created → Strategy Selected
@@ -521,16 +528,16 @@ FAILED → OBSERVED → DIAGNOSED → DECIDED
 
 ## 🧪 End-to-End Test Matrix
 
-| Scenario | Purchase Type | Expected Outcome |
-|---|---|---|
-| PulseFit Shaker — ₹799 | One-time | Recovered, zero subscription |
-| PulseFit Elite — ₹14,999 | One-time | Recovered, zero subscription |
-| PulseFit Membership — ₹1,499 initial | Subscription | Recovered, active subscription |
-| Renewal Attempt #1 | Subscription renewal | Failure → retry later |
-| Renewal Attempt #2 | Subscription renewal | Failure → retry later |
-| Renewal Attempt #3 | Subscription renewal | Automatic retry cap |
-| Customer-assisted recovery | Subscription renewal | Recovery link generated |
-| Successful renewal | Subscription renewal | Reconciled + next billing advanced |
+| Scenario                             | Purchase Type        | Expected Outcome                   |
+| ------------------------------------ | -------------------- | ---------------------------------- |
+| PulseFit Shaker — ₹799               | One-time             | Recovered, zero subscription       |
+| PulseFit Elite — ₹14,999             | One-time             | Recovered, zero subscription       |
+| PulseFit Membership — ₹1,499 initial | Subscription         | Recovered, active subscription     |
+| Renewal Attempt #1                   | Subscription renewal | Failure → retry later              |
+| Renewal Attempt #2                   | Subscription renewal | Failure → retry later              |
+| Renewal Attempt #3                   | Subscription renewal | Automatic retry cap                |
+| Customer-assisted recovery           | Subscription renewal | Recovery link generated            |
+| Successful renewal                   | Subscription renewal | Reconciled + next billing advanced |
 
 ---
 
@@ -617,24 +624,30 @@ recoverflow/
 ## 🚀 Local Setup
 
 **1. Start Backend**
+
 ```bash
 cd apps/agent
 python -m uvicorn main:app --port 8000
 ```
+
 Backend → `http://localhost:8000`
 
-**2. Start Storefront** *(new terminal)*
+**2. Start Storefront** _(new terminal)_
+
 ```bash
 cd apps/storefront
 python -m http.server 3000
 ```
+
 Storefront → `http://localhost:3000`
 
-**3. Start Mission Control** *(new terminal)*
+**3. Start Mission Control** _(new terminal)_
+
 ```bash
 cd apps/dashboard
 python -m http.server 3001
 ```
+
 Dashboard → `http://localhost:3001/dashboard.html`
 
 ---
@@ -679,12 +692,14 @@ These endpoints power the live recovery pipeline, agent decision feed, guardrail
 ## 🧭 Demo Flow
 
 **Demo A — One-Time Recovery**
+
 ```text
 ₹799 Shaker → Fail Payment → Agent 1 → Agent 2 → Agent 3
    → Recovery Payment → Razorpay Webhook → RECOVERED
 ```
 
 **Demo B — Subscription Lifecycle**
+
 ```text
 ₹1,499 Membership → Recover Initial Checkout → Subscription ACTIVE
    → +1 MONTH → Renewal Failure → +48H → Attempt #2 → +48H → Attempt #3
@@ -718,7 +733,7 @@ These endpoints power the live recovery pipeline, agent decision feed, guardrail
 ## 🧠 Engineering Principles
 
 1. **Don't blindly retry** — a failed payment requires diagnosis
-2. **Separate decision from execution** — no single uncontrolled component decides *and* executes a financial action
+2. **Separate decision from execution** — no single uncontrolled component decides _and_ executes a financial action
 3. **Bound automation** — retries need explicit limits and cooldowns
 4. **Treat webhooks as financial evidence** — a generated recovery order is not proof of recovery
 5. **Make every important decision reconstructable** — a financial workflow needs an audit trail
@@ -726,6 +741,7 @@ These endpoints power the live recovery pipeline, agent decision feed, guardrail
 ---
 
 ## 🏆 Razorpay AI Buildathon 2026
+
 ### Track 03 — AI Revenue Recovery
 
 RecoverFlow is designed around the track's core objective:
@@ -766,22 +782,23 @@ RecoverFlow turns that decision point into an auditable workflow.
 ---
 
 ## 🎥 Buildathon Pitch
-*The 5-minute story*
 
-| Time | Beat |
-|---|---|
-| 0:00 | **Problem** — Payment failure doesn't mean revenue is lost; the problem is deciding what happens next |
+_The 5-minute story_
+
+| Time | Beat                                                                                                         |
+| ---- | ------------------------------------------------------------------------------------------------------------ |
+| 0:00 | **Problem** — Payment failure doesn't mean revenue is lost; the problem is deciding what happens next        |
 | 0:30 | **Product** — Diagnose the failure, choose immediate recovery / scheduled retry / customer-assisted recovery |
-| 1:00 | **Live Demo** — ₹799 one-time recovery |
-| 1:45 | **Business Correctness** — ₹14,999 recovery with zero subscription created |
-| 2:00 | **Recurring Recovery** — ₹1,499 subscription lifecycle |
-| 2:30 | **Retry Policy** — Attempt 1 → +48h → Attempt 2 → +48h → Attempt 3 → automatic cap |
-| 3:00 | **Customer-Assisted Recovery** — recovery link / WhatsApp deep link → successful payment |
-| 3:30 | **Architecture** — Monitoring → Diagnosis → Scheduler/Action → Customer → Webhook → Reconciliation |
-| 4:00 | **AI Judgment** — why intelligent decisioning is separated from deterministic execution |
-| 4:20 | **What Broke** — the real `payment_failed` classification bug and the fix |
-| 4:45 | **Results** — recovered payment outcomes, subscription correctness |
-| 4:55 | **Closing** — *"Payment failures are inevitable. Blind retries don't have to be."* |
+| 1:00 | **Live Demo** — ₹799 one-time recovery                                                                       |
+| 1:45 | **Business Correctness** — ₹14,999 recovery with zero subscription created                                   |
+| 2:00 | **Recurring Recovery** — ₹1,499 subscription lifecycle                                                       |
+| 2:30 | **Retry Policy** — Attempt 1 → +48h → Attempt 2 → +48h → Attempt 3 → automatic cap                           |
+| 3:00 | **Customer-Assisted Recovery** — recovery link / WhatsApp deep link → successful payment                     |
+| 3:30 | **Architecture** — Monitoring → Diagnosis → Scheduler/Action → Customer → Webhook → Reconciliation           |
+| 4:00 | **AI Judgment** — why intelligent decisioning is separated from deterministic execution                      |
+| 4:20 | **What Broke** — the real `payment_failed` classification bug and the fix                                    |
+| 4:45 | **Results** — recovered payment outcomes, subscription correctness                                           |
+| 4:55 | **Closing** — _"Payment failures are inevitable. Blind retries don't have to be."_                           |
 
 ---
 
