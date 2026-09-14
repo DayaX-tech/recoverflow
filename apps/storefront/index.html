@@ -128,6 +128,28 @@
             box-shadow: 0 8px 24px rgba(124, 58, 237, .45);
         }
 
+        .cta-dashboard {
+            background: rgba(34, 211, 238, 0.12);
+            color: var(--accent2);
+            border: 1px solid rgba(34, 211, 238, 0.35);
+            padding: 8px 18px;
+            border-radius: 999px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: .88rem;
+            transition: .25s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .cta-dashboard:hover {
+            background: rgba(34, 211, 238, 0.22);
+            border-color: var(--accent2);
+            box-shadow: 0 0 16px rgba(34, 211, 238, .35);
+            transform: translateY(-2px);
+        }
+
         /* ===== HERO ===== */
         .hero {
             min-height: 82vh;
@@ -589,7 +611,10 @@
 
     <nav>
         <div class="logo"><span class="pulse-dot"></span> PulseFit</div>
-        <button class="cta-mini" id="navBtn">Join Now</button>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <a href="/dashboard/" target="_blank" class="cta-dashboard" title="Open RecoverFlow Mission Control">⚡ Mission Control →</a>
+            <button class="cta-mini" id="navBtn">Join Now</button>
+        </div>
     </nav>
 
     <section class="hero">
@@ -702,7 +727,7 @@
     <script>
         // ================= STATE =================
         var customerPhone = localStorage.getItem('pulsefit_phone') || null;
-        var API = 'http://localhost:8000';
+        var API = (window.location.port === '3000') ? 'http://localhost:8000' : window.location.origin;
 
         // ================= SCROLL REVEAL =================
         var observer = new IntersectionObserver(function (entries) {

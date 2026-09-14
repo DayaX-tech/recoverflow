@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const BACKEND_URL = 'http://localhost:8000';
+  const BACKEND_URL = (window.location.port === '3001') ? 'http://localhost:8000' : window.location.origin;
   const POLL_INTERVAL_MS = 2500;
 
   // Global State
@@ -151,7 +151,7 @@
       el.beaconDot.className = isOnline ? 'beacon-dot online' : 'beacon-dot';
     }
     if (el.beaconStatusText) {
-      el.beaconStatusText.textContent = isOnline ? 'LIVE BACKEND (Port 8000)' : 'OFFLINE';
+      el.beaconStatusText.textContent = isOnline ? 'LIVE BACKEND' : 'OFFLINE';
     }
     if (el.clockText) {
       el.clockText.textContent = isOnline ? (state.virtualClock.formatted || '—') : '—';

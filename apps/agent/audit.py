@@ -12,12 +12,13 @@ Auditors can verify the chain.
 """
 
 import hashlib
+import os
 import json
 import sqlite3
 from datetime import datetime
 
 
-DB = "pulsefit.db"
+DB = os.getenv("SQLITE_DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "pulsefit.db"))
 
 
 def db():

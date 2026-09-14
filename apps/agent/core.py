@@ -7,6 +7,7 @@ The virtual clock is owned here so every agent sees the
 same demo time.
 """
 
+import os
 import sqlite3
 import urllib.parse
 from datetime import datetime, time as dtime, timezone, timedelta
@@ -19,7 +20,7 @@ import policy
 # CONFIGURATION
 # ============================================================
 
-DB = "pulsefit.db"
+DB = os.getenv("SQLITE_DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "pulsefit.db"))
 
 IST = timezone(timedelta(hours=5, minutes=30))
 

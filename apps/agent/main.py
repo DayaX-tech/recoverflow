@@ -17,6 +17,13 @@ URL:
 """
 
 import os
+import sys
+
+# Ensure apps/agent is in sys.path regardless of execution directory
+AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
+if AGENT_DIR not in sys.path:
+    sys.path.insert(0, AGENT_DIR)
+
 import hmac
 import hashlib
 import json
@@ -26,6 +33,8 @@ import razorpay
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
 import policy
@@ -33,22 +42,21 @@ import audit
 from core import db, audit_log, messaging_allowed_now, get_now, build_wa_link
 from agents import monitoring, diagnosis, action, scheduler
 
-from fastapi.responses import FileResponse
-import os
-
 
 # ============================================================
 # ENVIRONMENT
 # ============================================================
 
+# Load from apps/agent/.env first, then root .env or OS environment
+load_dotenv(os.path.join(AGENT_DIR, ".env"))
 load_dotenv()
 
-RAZORPAY_KEY_ID = os.environ["RAZORPAY_KEY_ID"]
-RAZORPAY_KEY_SECRET = os.environ["RAZORPAY_KEY_SECRET"]
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "rzp_test_placeholder")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "placeholder_secret")
 
 STORE_BASE = os.getenv(
     "STORE_BASE_URL",
-    "https://overdraft-gag-unsmooth.ngrok-free.dev"
+    "http://localhost:8000"
 )
 
 
@@ -1339,6 +1347,39 @@ def list_subscriptions():
         "renewals": [dict(r) for r in renewals],
     }
 
+
+
+# ============================================================
+# UNIFIED HOSTING: STOREFRONT & DASHBOARD
+# ============================================================
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STOREFRONT_DIR = os.path.join(BASE_DIR, "storefront")
+DASHBOARD_DIR = os.path.join(BASE_DIR, "dashboard")
+
+# Mount Mission Control dashboard at /dashboard
+if os.path.exists(DASHBOARD_DIR):
+    app.mount("/dashboard", StaticFiles(directory=DASHBOARD_DIR, html=True), name="dashboard")
+
+@app.get("/")
+@app.get("/store")
+def serve_storefront():
+    index_path = os.path.join(STOREFRONT_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return RedirectResponse(url="/dashboard/")
+
+@app.get("/lab")
+@app.get("/lab.html")
+def serve_lab():
+    lab_path = os.path.join(STOREFRONT_DIR, "lab.html")
+    if os.path.exists(lab_path):
+        return FileResponse(lab_path)
+    raise HTTPException(status_code=404, detail="Lab not found")
+
+@app.get("/pay")
+def recovery_page_alias():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "pay.html"))
 
 
 # ============================================================

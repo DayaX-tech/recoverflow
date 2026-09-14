@@ -562,8 +562,10 @@
                  * associated with the order.
                  */
 
+                const apiBase = (window.location.port === '3000' || window.location.port === '3001') ? 'http://localhost:8000' : window.location.origin;
+
                 const metaResponse = await fetch(
-                    "http://localhost:8000/order_meta?oid=" +
+                    apiBase + "/order_meta?oid=" +
                     encodeURIComponent(oid)
                 );
 
@@ -599,7 +601,7 @@
                  */
 
                 const checkoutResponse = await fetch(
-                    "http://localhost:8000/retry-checkout/" +
+                    apiBase + "/retry-checkout/" +
                     encodeURIComponent(oid)
                 );
 

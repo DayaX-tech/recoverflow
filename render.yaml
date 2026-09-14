@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: recoverflow
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn apps.agent.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        value: rf_webhook_secret_2025
+      - key: STORE_BASE_URL
+        fromService:
+          type: web
+          name: recoverflow
+          property: host
